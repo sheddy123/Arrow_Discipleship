@@ -17,19 +17,16 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'https://localhost:7001',
+        target: 'http://localhost:5123',
         changeOrigin: true,
-        secure: false,
       },
       '/hangfire': {
-        target: 'https://localhost:7001',
+        target: 'http://localhost:5123',
         changeOrigin: true,
-        secure: false,
       },
       '/hubs': {
-        target: 'https://localhost:7001',
+        target: 'http://localhost:5123',
         changeOrigin: true,
-        secure: false,
         ws: true,
       },
     },

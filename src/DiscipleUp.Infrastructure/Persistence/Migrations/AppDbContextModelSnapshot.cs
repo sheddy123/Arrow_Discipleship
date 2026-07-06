@@ -483,6 +483,34 @@ namespace DiscipleUp.Infrastructure.Persistence.Migrations
                     b.ToTable("RefreshTokens");
                 });
 
+            modelBuilder.Entity("DiscipleUp.Domain.Entities.ScriptureMemory", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("MarkedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("StudentId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("WeekId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WeekId");
+
+                    b.HasIndex("StudentId", "WeekId")
+                        .IsUnique();
+
+                    b.ToTable("ScriptureMemories");
+                });
+
             modelBuilder.Entity("DiscipleUp.Domain.Entities.Session", b =>
                 {
                     b.Property<int>("Id")
@@ -1031,6 +1059,25 @@ namespace DiscipleUp.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("DiscipleUp.Domain.Entities.ScriptureMemory", b =>
+                {
+                    b.HasOne("DiscipleUp.Domain.Entities.ApplicationUser", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DiscipleUp.Domain.Entities.Week", "Week")
+                        .WithMany()
+                        .HasForeignKey("WeekId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Student");
+
+                    b.Navigation("Week");
                 });
 
             modelBuilder.Entity("DiscipleUp.Domain.Entities.Session", b =>

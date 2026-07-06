@@ -1,4 +1,5 @@
 using System.Text;
+using DiscipleUp.Api.Filters;
 using DiscipleUp.Domain.Entities;
 using DiscipleUp.Infrastructure.Persistence;
 using DiscipleUp.Infrastructure.Services;
@@ -61,7 +62,8 @@ builder.Services.AddHangfireServer();
 builder.Services.AddScoped<ITokenService, TokenService>();
 
 // ── Controllers + OpenAPI ─────────────────────────────────────────────────────
-builder.Services.AddControllers();
+builder.Services.AddScoped<WeekGateFilter>();
+builder.Services.AddControllers(opts => opts.Filters.Add<WeekGateFilter>());
 builder.Services.AddOpenApi();
 
 // ── CORS (Vite dev server) ────────────────────────────────────────────────────
