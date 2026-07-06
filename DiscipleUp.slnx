@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DiscipleUp.Api/DiscipleUp.Api.csproj" />
+    <Project Path="src/DiscipleUp.Application/DiscipleUp.Application.csproj" />
+    <Project Path="src/DiscipleUp.Domain/DiscipleUp.Domain.csproj" />
+    <Project Path="src/DiscipleUp.Infrastructure/DiscipleUp.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DiscipleUp.Api.Tests/DiscipleUp.Api.Tests.csproj" />
+    <Project Path="tests/DiscipleUp.Application.Tests/DiscipleUp.Application.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,23 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+src/DiscipleUp.Api/wwwroot/
+
+# EF migrations design-time build output
+src/DiscipleUp.Infrastructure/Persistence/Migrations/*.designer.cs
+
+# Node
+src/DiscipleUp.Web/node_modules/
+src/DiscipleUp.Web/dist/
+
+# Environment / secrets
+appsettings.*.local.json
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
