@@ -27,6 +27,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<StudentBadge> StudentBadges => Set<StudentBadge>();
     public DbSet<PrayerRequest> PrayerRequests => Set<PrayerRequest>();
     public DbSet<ScriptureMemory> ScriptureMemories => Set<ScriptureMemory>();
+    public DbSet<Announcement> Announcements => Set<Announcement>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -163,6 +164,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             .OnDelete(DeleteBehavior.Cascade);
         builder.Entity<ScriptureMemory>()
             .HasIndex(sm => new { sm.StudentId, sm.WeekId }).IsUnique();
+
+        builder.Entity<Announcement>()
+            .HasOne(a => a.Author).WithMany().HasForeignKey(a => a.AuthorId)
+            .OnDelete(DeleteBehavior.Restrict);
+        builder.Entity<Announcement>()
+            .HasOne(a => a.Cohort).WithMany().HasForeignKey(a => a.CohortId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         // Seed badge catalogue
         builder.Entity<Badge>().HasData(

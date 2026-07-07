@@ -50,14 +50,14 @@ public class CohortContentController(AppDbContext db) : ControllerBase
         {
             var sub = await db.Submissions
                 .Where(s => s.StudentId == userId && s.AssignmentId == assignment.Id && s.CohortId == cohortId)
-                .Include(s => s.Feedbacks)
+                .Include(s => s.Feedback)
                 .FirstOrDefaultAsync();
 
             if (sub is not null)
             {
                 submission = new StudentSubmissionDto(
                     sub.Id, sub.TextContent, sub.FileUrl, sub.FileName, sub.SubmittedAt,
-                    sub.Feedbacks.OrderByDescending(f => f.CreatedAt).FirstOrDefault()?.Comment);
+                    sub.Feedback?.Comment);
             }
         }
 

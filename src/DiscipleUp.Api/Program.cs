@@ -48,6 +48,21 @@ builder.Services.AddAuthentication(options =>
         IssuerSigningKey = new SymmetricSecurityKey(
             Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
     };
+
+    // SignalR sends the JWT as a query-string parameter on WebSocket connections
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            if (!string.IsNullOrEmpty(accessToken) &&
+                context.HttpContext.Request.Path.StartsWithSegments("/hubs"))
+            {
+                context.Token = accessToken;
+            }
+            return Task.CompletedTask;
+        }
+    };
 });
 
 // ── Hangfire ──────────────────────────────────────────────────────────────────
@@ -65,6 +80,7 @@ builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<WeekGateFilter>();
 builder.Services.AddControllers(opts => opts.Filters.Add<WeekGateFilter>());
 builder.Services.AddOpenApi();
+builder.Services.AddSignalR();
 
 // ── CORS (Vite dev server) ────────────────────────────────────────────────────
 builder.Services.AddCors(options =>
@@ -113,6 +129,7 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 
 app.MapControllers();
+app.MapHub<DiscipleUp.Api.Hubs.CohortHub>("/hubs/cohort");
 app.UseHangfireDashboard("/hangfire", new DashboardOptions
 {
     // TODO Sprint 6: restrict dashboard to Admin role
