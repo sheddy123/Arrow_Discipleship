@@ -142,4 +142,75 @@ public class StudentController(AppDbContext db) : ControllerBase
 
         return Ok(new JourneyDto(cohort.Id, cohort.Name, progress.CurrentWeek, progress.CurrentDay, weekDtos));
     }
+
+    // GET api/students/me/profile
+    [HttpGet("me/profile")]
+    public async Task<IActionResult> GetProfile()
+    {
+        var userId = UserId;
+        var user = await db.Users.FindAsync(userId);
+        if (user is null) return NotFound();
+
+        var progress = await db.StudentProgresses.FirstOrDefaultAsync(sp => sp.StudentId == userId);
+
+        var earned = await db.StudentBadges
+            .Where(sb => sb.StudentId == userId)
+            .ToDictionaryAsync(sb => sb.BadgeId, sb => sb.EarnedAt);
+
+        var badges = await db.Badges
+            .OrderBy(b => b.Id)
+            .Select(b => new { b.Id, b.Name, b.Description })
+            .ToListAsync();
+
+        return Ok(new StudentProfileDto(
+            user.FirstName, user.LastName, user.Email ?? "", user.Timezone,
+            progress?.IsOnLeaderboard ?? false,
+            badges.Select(b => new ProfileBadgeDto(
+                b.Name, b.Description,
+                earned.ContainsKey(b.Id),
+                earned.TryGetValue(b.Id, out var at) ? at : null))));
+    }
+
+    // PUT api/students/me/leaderboard — opt in or out of the cohort leaderboard
+    [HttpPut("me/leaderboard")]
+    public async Task<IActionResult> SetLeaderboardOptIn(LeaderboardOptInRequest request)
+    {
+        var progress = await db.StudentProgresses.FirstOrDefaultAsync(sp => sp.StudentId == UserId);
+        if (progress is null) return NotFound(new { error = "Not enrolled in a cohort." });
+
+        progress.IsOnLeaderboard = request.OptIn;
+        progress.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+        return Ok(new { isOnLeaderboard = progress.IsOnLeaderboard });
+    }
+
+    // GET api/students/me/leaderboard — cohort leaderboard ranked by streak
+    [HttpGet("me/leaderboard")]
+    public async Task<IActionResult> GetLeaderboard()
+    {
+        var userId = UserId;
+        var progress = await db.StudentProgresses.FirstOrDefaultAsync(sp => sp.StudentId == userId);
+        if (progress is null) return Ok(new { enrolled = false });
+
+        var entries = await db.StudentProgresses
+            .Where(sp => sp.CohortId == progress.CohortId && sp.IsOnLeaderboard)
+            .OrderByDescending(sp => sp.CurrentStreak)
+            .ThenByDescending(sp => sp.TotalTasksCompleted)
+            .Select(sp => new
+            {
+                sp.StudentId,
+                Name = sp.Student.FirstName + " " + sp.Student.LastName,
+                sp.CurrentStreak,
+                sp.TotalTasksCompleted,
+            })
+            .ToListAsync();
+
+        return Ok(new
+        {
+            enrolled = true,
+            optedIn = progress.IsOnLeaderboard,
+            entries = entries.Select((e, i) => new LeaderboardEntryDto(
+                i + 1, e.Name, e.CurrentStreak, e.TotalTasksCompleted, e.StudentId == userId)),
+        });
+    }
 }

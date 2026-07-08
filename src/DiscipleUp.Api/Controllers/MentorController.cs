@@ -32,17 +32,42 @@ public class MentorController(AppDbContext db) : ControllerBase
         var isAdmin = User.IsInRole("Admin");
         var userId = UserId;
 
+        // Fetch the base cohort rows first, then compute each per-cohort aggregate
+        // as its own grouped query. Projecting multiple correlated `db.X.Count(...)`
+        // subqueries into the DTO constructor here crashes the query pipeline.
         var cohorts = await db.Cohorts
             .Where(c => isAdmin || c.MentorId == userId)
             .OrderByDescending(c => c.StartDate)
-            .Select(c => new MentorCohortSummaryDto(
-                c.Id, c.Name, c.StartDate, c.Status.ToString(),
-                c.CohortUsers.Count(cu => cu.Role == CohortRole.Student),
-                db.Submissions.Count(s => s.CohortId == c.Id && s.Feedback == null),
-                db.PrayerRequests.Count(pr => pr.CohortId == c.Id && pr.Status == PrayerRequestStatus.Pending)))
+            .Select(c => new { c.Id, c.Name, c.StartDate, Status = c.Status.ToString() })
             .ToListAsync();
 
-        return Ok(cohorts);
+        var cohortIds = cohorts.Select(c => c.Id).ToList();
+
+        var studentCounts = await db.CohortUsers
+            .Where(cu => cohortIds.Contains(cu.CohortId) && cu.Role == CohortRole.Student)
+            .GroupBy(cu => cu.CohortId)
+            .Select(g => new { CohortId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.CohortId, x => x.Count);
+
+        var pendingReviewCounts = await db.Submissions
+            .Where(s => cohortIds.Contains(s.CohortId) && s.Feedback == null)
+            .GroupBy(s => s.CohortId)
+            .Select(g => new { CohortId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.CohortId, x => x.Count);
+
+        var pendingPrayerCounts = await db.PrayerRequests
+            .Where(pr => cohortIds.Contains(pr.CohortId) && pr.Status == PrayerRequestStatus.Pending)
+            .GroupBy(pr => pr.CohortId)
+            .Select(g => new { CohortId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.CohortId, x => x.Count);
+
+        var result = cohorts.Select(c => new MentorCohortSummaryDto(
+            c.Id, c.Name, c.StartDate, c.Status,
+            studentCounts.GetValueOrDefault(c.Id),
+            pendingReviewCounts.GetValueOrDefault(c.Id),
+            pendingPrayerCounts.GetValueOrDefault(c.Id))).ToList();
+
+        return Ok(result);
     }
 
     // GET api/mentor/cohorts/{cohortId}/dashboard

@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using DiscipleUp.Api.Models;
+using DiscipleUp.Api.Services;
 using DiscipleUp.Domain.Entities;
 using DiscipleUp.Domain.Enums;
 using DiscipleUp.Infrastructure.Persistence;
@@ -18,8 +19,12 @@ public class AuthController(
     UserManager<ApplicationUser> userManager,
     SignInManager<ApplicationUser> signInManager,
     ITokenService tokenService,
+    IEmailService emailService,
+    IConfiguration config,
     AppDbContext db) : ControllerBase
 {
+    private string BaseUrl => config["App:BaseUrl"] ?? "http://localhost:5173";
+
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterRequest req, CancellationToken ct)
     {
@@ -53,6 +58,9 @@ public class AuthController(
             return Ok(new { message = "Account created. A consent invitation has been sent to the parent email. The account will be active once the parent completes registration." });
         }
 
+        await emailService.SendAsync(user.Email!, "Welcome to DiscipleUp!",
+            EmailTemplates.Welcome(user.FirstName), ct);
+
         var roles = await userManager.GetRolesAsync(user);
         var refreshToken = await tokenService.CreateRefreshTokenAsync(user, ct);
         return Ok(new AuthResponse(
@@ -61,6 +69,7 @@ public class AuthController(
             user.Id,
             user.Email!,
             user.FirstName,
+            user.LastName,
             roles.First(),
             user.Status.ToString()));
     }
@@ -87,6 +96,7 @@ public class AuthController(
             user.Id,
             user.Email!,
             user.FirstName,
+            user.LastName,
             roles.First(),
             user.Status.ToString()));
     }
@@ -106,6 +116,7 @@ public class AuthController(
             user.Id,
             user.Email!,
             user.FirstName,
+            user.LastName,
             roles.First(),
             user.Status.ToString()));
     }
@@ -136,8 +147,11 @@ public class AuthController(
         db.PasswordResetTokens.Add(resetToken);
         await db.SaveChangesAsync(ct);
 
-        // TODO Sprint 6: send email via Resend with reset link containing rawToken
-        // For now, return the token in dev mode only
+        var resetUrl = $"{BaseUrl}/reset-password?token={Uri.EscapeDataString(rawToken)}&email={Uri.EscapeDataString(user.Email!)}";
+        await emailService.SendAsync(user.Email!, "Reset your DiscipleUp password",
+            EmailTemplates.PasswordReset(user.FirstName, resetUrl), ct);
+
+        // Dev convenience: expose the token so the flow is testable without email
         if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") == "Development")
             return Ok(new { message = "Reset token issued.", devToken = rawToken });
 
@@ -246,7 +260,10 @@ public class AuthController(
         };
         db.ParentalConsentInvites.Add(invite);
         await db.SaveChangesAsync(ct);
-        // TODO Sprint 6: send email via Resend with consent link
+
+        var consentUrl = $"{BaseUrl}/consent/complete?token={Uri.EscapeDataString(rawToken)}";
+        await emailService.SendAsync(parentEmail, $"Parental consent for {student.FirstName}'s DiscipleUp account",
+            EmailTemplates.ParentalConsentInvite($"{student.FirstName} {student.LastName}", consentUrl), ct);
     }
 
     private static int CalculateAge(DateOnly dateOfBirth)

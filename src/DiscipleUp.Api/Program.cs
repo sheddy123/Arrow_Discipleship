@@ -75,6 +75,13 @@ builder.Services.AddHangfireServer();
 
 // ── Application services ──────────────────────────────────────────────────────
 builder.Services.AddScoped<ITokenService, TokenService>();
+builder.Services.AddHttpClient<IEmailService, ResendEmailService>();
+builder.Services.AddScoped<DiscipleUp.Api.Services.GamificationService>();
+builder.Services.AddScoped<DiscipleUp.Api.Jobs.StreakResetJob>();
+builder.Services.AddScoped<DiscipleUp.Api.Jobs.EmailJobs>();
+builder.Services.AddScoped<DiscipleUp.Api.Jobs.TaskReminderJob>();
+builder.Services.AddScoped<DiscipleUp.Api.Jobs.ParentSummaryJob>();
+builder.Services.AddScoped<DiscipleUp.Api.Services.DevSeeder>();
 
 // ── Controllers + OpenAPI ─────────────────────────────────────────────────────
 builder.Services.AddScoped<WeekGateFilter>();
@@ -106,6 +113,10 @@ using (var scope = app.Services.CreateScope())
         if (!await roleManager.RoleExistsAsync(role))
             await roleManager.CreateAsync(new IdentityRole(role));
     }
+
+    // Dev-only demo data: test users across every role + a fully authored cohort
+    if (app.Environment.IsDevelopment())
+        await scope.ServiceProvider.GetRequiredService<DiscipleUp.Api.Services.DevSeeder>().SeedAsync();
 }
 
 // ── Middleware pipeline ───────────────────────────────────────────────────────
@@ -130,9 +141,24 @@ app.UseStaticFiles();
 
 app.MapControllers();
 app.MapHub<DiscipleUp.Api.Hubs.CohortHub>("/hubs/cohort");
+
+// Recurring jobs run hourly; each job filters to the timezone group whose
+// local clock matches its target time (00:05 streak reset, 17:00 reminders,
+// Sunday 18:00 parent summaries).
+using (var scope = app.Services.CreateScope())
+{
+    var recurringJobs = scope.ServiceProvider.GetRequiredService<IRecurringJobManager>();
+    recurringJobs.AddOrUpdate<DiscipleUp.Api.Jobs.StreakResetJob>(
+        "streak-reset", job => job.RunAsync(), "5 * * * *");
+    recurringJobs.AddOrUpdate<DiscipleUp.Api.Jobs.TaskReminderJob>(
+        "task-reminder", job => job.RunAsync(), "0 * * * *");
+    // Hourly every day — local Sunday 18:00 falls on a different UTC day per timezone
+    recurringJobs.AddOrUpdate<DiscipleUp.Api.Jobs.ParentSummaryJob>(
+        "parent-summary", job => job.RunAsync(), "0 * * * *");
+}
 app.UseHangfireDashboard("/hangfire", new DashboardOptions
 {
-    // TODO Sprint 6: restrict dashboard to Admin role
+    Authorization = [new HangfireDashboardAuthFilter()]
 });
 
 // Fallback for React Router client-side navigation

@@ -1,5 +1,8 @@
 using DiscipleUp.Api.Filters;
+using DiscipleUp.Api.Jobs;
 using DiscipleUp.Api.Models;
+using DiscipleUp.Api.Services;
+using Hangfire;
 using DiscipleUp.Domain.Entities;
 using DiscipleUp.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
@@ -12,7 +15,10 @@ namespace DiscipleUp.Api.Controllers;
 [ApiController]
 [Route("api/cohorts/{cohortId:int}")]
 [Authorize(Roles = "Student,Mentor,Admin")]
-public class CohortContentController(AppDbContext db) : ControllerBase
+public class CohortContentController(
+    AppDbContext db,
+    GamificationService gamification,
+    IBackgroundJobClient jobs) : ControllerBase
 {
     private string UserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
@@ -99,6 +105,7 @@ public class CohortContentController(AppDbContext db) : ControllerBase
         var alreadyDone = await db.TaskCompletions.AnyAsync(tc =>
             tc.StudentId == userId && tc.TaskId == taskId && tc.CohortId == cohortId);
 
+        GamificationResult? gamificationResult = null;
         if (!alreadyDone)
         {
             db.TaskCompletions.Add(new TaskCompletion
@@ -109,35 +116,16 @@ public class CohortContentController(AppDbContext db) : ControllerBase
                 CompletedAt = DateTime.UtcNow
             });
 
-            // Update progress counters
             var progress = await db.StudentProgresses
                 .FirstOrDefaultAsync(sp => sp.StudentId == userId && sp.CohortId == cohortId);
-
             if (progress is not null)
-            {
                 progress.TotalTasksCompleted++;
-                progress.LastActivityDate = DateOnly.FromDateTime(DateTime.UtcNow);
-
-                // Streak update (basic — full Hangfire job in Sprint 5)
-                var today = DateOnly.FromDateTime(DateTime.UtcNow);
-                if (progress.LastActivityDate == today.AddDays(-1) || progress.LastActivityDate == today)
-                {
-                    if (progress.LastActivityDate != today)
-                    {
-                        progress.CurrentStreak++;
-                        if (progress.CurrentStreak > progress.LongestStreak)
-                            progress.LongestStreak = progress.CurrentStreak;
-                    }
-                }
-                else
-                {
-                    progress.CurrentStreak = 1;
-                }
-                progress.LastActivityDate = today;
-                progress.UpdatedAt = DateTime.UtcNow;
-            }
 
             await db.SaveChangesAsync();
+
+            // Streak + badges + real-time StreakUpdated / BadgeUnlocked pushes
+            gamificationResult = await gamification.OnTaskCompletedAsync(
+                userId, cohortId, task.Day.Week.WeekNumber);
         }
 
         // Check if all tasks for today are complete → advance day
@@ -193,10 +181,17 @@ public class CohortContentController(AppDbContext db) : ControllerBase
 
         bool weekComplete = allWeekTaskIds.All(id => completedWeekTaskIds.Contains(id));
 
-        var progressNow = await db.StudentProgresses
-            .FirstOrDefaultAsync(sp => sp.StudentId == userId && sp.CohortId == cohortId);
+        // Alert the mentor the moment the final task of the week lands
+        if (weekComplete && gamificationResult is not null)
+            jobs.Enqueue<EmailJobs>(j =>
+                j.SendWeekCompletionAlertAsync(userId, cohortId, task.Day.Week.WeekNumber));
 
-        return Ok(new TaskCompleteResponse(allDayTasksDone, weekComplete, progressNow?.CurrentStreak ?? 0));
+        var streak = gamificationResult?.CurrentStreak
+            ?? (await db.StudentProgresses
+                .FirstOrDefaultAsync(sp => sp.StudentId == userId && sp.CohortId == cohortId))?.CurrentStreak
+            ?? 0;
+
+        return Ok(new TaskCompleteResponse(allDayTasksDone, weekComplete, streak));
     }
 
     // DELETE api/cohorts/{cohortId}/tasks/{taskId}/complete
@@ -256,6 +251,14 @@ public class CohortContentController(AppDbContext db) : ControllerBase
         }
 
         await db.SaveChangesAsync();
+
+        // FirstStep / WeekChampion badge triggers + BadgeUnlocked push
+        var weekNumber = await db.Weeks
+            .Where(w => w.Assignments.Any(a => a.Id == assignmentId))
+            .Select(w => w.WeekNumber)
+            .FirstAsync();
+        await gamification.OnAssignmentSubmittedAsync(userId, cohortId, weekNumber);
+
         return Ok(new { message = "Submitted successfully." });
     }
 
