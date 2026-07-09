@@ -95,6 +95,31 @@ public class AdminUserController(
         return Ok(new { message = $"Role changed to {req.Role}." });
     }
 
+    [HttpPut("{id}/status")]
+    public async Task<IActionResult> SetStatus(string id, [FromBody] SetUserStatusRequest req, CancellationToken ct)
+    {
+        var user = await userManager.FindByIdAsync(id);
+        if (user is null) return NotFound();
+
+        if (!req.Active && user.Id == userManager.GetUserId(User))
+            return BadRequest(new { error = "You cannot deactivate your own account." });
+
+        user.Status = req.Active ? UserStatus.Active : UserStatus.Suspended;
+        await userManager.UpdateAsync(user);
+
+        if (!req.Active)
+        {
+            // Revoke active sessions so a deactivated user is signed out
+            var tokens = await db.RefreshTokens
+                .Where(t => t.UserId == id && t.RevokedAt == null)
+                .ToListAsync(ct);
+            foreach (var t in tokens) t.RevokedAt = DateTime.UtcNow;
+            await db.SaveChangesAsync(ct);
+        }
+
+        return Ok(new { status = user.Status.ToString() });
+    }
+
     [HttpPost("{id}/reset-password")]
     public async Task<IActionResult> AdminResetPassword(string id, [FromBody] AdminResetPasswordRequest req, CancellationToken ct)
     {
