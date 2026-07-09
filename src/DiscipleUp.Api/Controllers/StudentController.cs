@@ -1,4 +1,5 @@
 using DiscipleUp.Api.Models;
+using DiscipleUp.Api.Services;
 using DiscipleUp.Domain.Entities;
 using DiscipleUp.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authorization;
@@ -14,6 +15,12 @@ namespace DiscipleUp.Api.Controllers;
 public class StudentController(AppDbContext db) : ControllerBase
 {
     private string UserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+
+    private static LevelDto ToLevelDto(int xp)
+    {
+        var info = Leveling.For(xp);
+        return new LevelDto(info.Level, info.Title, info.TotalXp, info.XpIntoLevel, info.XpForNextLevel);
+    }
 
     // GET api/students/me/dashboard
     [HttpGet("me/dashboard")]
@@ -76,10 +83,45 @@ public class StudentController(AppDbContext db) : ControllerBase
             progress?.CurrentStreak ?? 0,
             progress?.LongestStreak ?? 0,
             progress?.TotalTasksCompleted ?? 0,
+            ToLevelDto(progress?.Xp ?? 0),
             cohortDto,
             todaysTasks,
             recentBadges
         ));
+    }
+
+    // GET api/students/me/announcements — the announcement feed for the student's cohort
+    [HttpGet("me/announcements")]
+    public async Task<IActionResult> GetAnnouncements()
+    {
+        var progress = await db.StudentProgresses.FirstOrDefaultAsync(sp => sp.StudentId == UserId);
+        if (progress is null) return Ok(Array.Empty<AnnouncementDto>());
+
+        var list = await db.Announcements
+            .Where(a => a.CohortId == progress.CohortId)
+            .OrderByDescending(a => a.CreatedAt)
+            .Select(a => new AnnouncementDto(
+                a.Id, a.Title, a.Content,
+                a.Author.FirstName + " " + a.Author.LastName, a.CreatedAt))
+            .ToListAsync();
+        return Ok(list);
+    }
+
+    // GET api/students/me/quests — today's daily quests with live progress
+    [HttpGet("me/quests")]
+    public async Task<IActionResult> GetQuests([FromServices] QuestService quests)
+    {
+        var progress = await db.StudentProgresses.FirstOrDefaultAsync(sp => sp.StudentId == UserId);
+        if (progress is null) return Ok(Array.Empty<QuestDto>());
+        return Ok(await quests.GetTodayAsync(UserId, progress.CohortId));
+    }
+
+    // POST api/students/me/quests/{id}/claim — claim a completed quest's XP reward
+    [HttpPost("me/quests/{id:int}/claim")]
+    public async Task<IActionResult> ClaimQuest(int id, [FromServices] QuestService quests)
+    {
+        var (error, result) = await quests.ClaimAsync(UserId, id);
+        return error is null ? Ok(result) : BadRequest(new { error });
     }
 
     // GET api/students/me/journey
@@ -177,6 +219,7 @@ public class StudentController(AppDbContext db) : ControllerBase
         return Ok(new StudentProfileDto(
             user.FirstName, user.LastName, user.Email ?? "", user.Timezone,
             progress?.IsOnLeaderboard ?? false,
+            ToLevelDto(progress?.Xp ?? 0),
             badges.Select(b => new ProfileBadgeDto(
                 b.Name, b.Description,
                 earned.ContainsKey(b.Id),

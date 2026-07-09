@@ -186,12 +186,21 @@ public class CohortContentController(
             jobs.Enqueue<EmailJobs>(j =>
                 j.SendWeekCompletionAlertAsync(userId, cohortId, task.Day.Week.WeekNumber));
 
+        var xpResult = gamificationResult?.Xp;
+        var currentXp = xpResult?.Xp
+            ?? await db.StudentProgresses
+                .Where(sp => sp.StudentId == userId && sp.CohortId == cohortId)
+                .Select(sp => (int?)sp.Xp).FirstOrDefaultAsync() ?? 0;
+        var level = Leveling.For(currentXp);
         var streak = gamificationResult?.CurrentStreak
             ?? (await db.StudentProgresses
                 .FirstOrDefaultAsync(sp => sp.StudentId == userId && sp.CohortId == cohortId))?.CurrentStreak
             ?? 0;
 
-        return Ok(new TaskCompleteResponse(allDayTasksDone, weekComplete, streak));
+        return Ok(new TaskCompleteResponse(
+            allDayTasksDone, weekComplete, streak,
+            xpResult?.XpGained ?? 0, currentXp, level.Level, level.Title,
+            xpResult?.LeveledUp ?? false));
     }
 
     // DELETE api/cohorts/{cohortId}/tasks/{taskId}/complete
@@ -257,9 +266,11 @@ public class CohortContentController(
             .Where(w => w.Assignments.Any(a => a.Id == assignmentId))
             .Select(w => w.WeekNumber)
             .FirstAsync();
-        await gamification.OnAssignmentSubmittedAsync(userId, cohortId, weekNumber);
+        var xp = await gamification.OnAssignmentSubmittedAsync(userId, cohortId, weekNumber);
 
-        return Ok(new { message = "Submitted successfully." });
+        return Ok(new AssignmentSubmitResponse(
+            "Submitted successfully.",
+            xp.XpGained, xp.Xp, xp.Level, xp.LevelTitle, xp.LeveledUp));
     }
 
     // POST api/cohorts/{cohortId}/weeks/{weekNumber}/scripture-memory
@@ -275,6 +286,7 @@ public class CohortContentController(
         if (week is null) return NotFound();
 
         var exists = await db.ScriptureMemories.AnyAsync(sm => sm.StudentId == userId && sm.WeekId == week.Id);
+        XpResult? xp = null;
         if (!exists)
         {
             db.ScriptureMemories.Add(new ScriptureMemory
@@ -284,9 +296,20 @@ public class CohortContentController(
                 MarkedAt = DateTime.UtcNow
             });
             await db.SaveChangesAsync();
+
+            // Reward memorising the week's verse.
+            xp = await gamification.AwardXpAsync(userId, cohortId, GamificationService.ScriptureXp);
         }
 
-        return Ok(new { memorized = true });
+        return Ok(new
+        {
+            memorized = true,
+            xpGained = xp?.XpGained ?? 0,
+            xp = xp?.Xp ?? 0,
+            level = xp?.Level ?? 0,
+            levelTitle = xp?.LevelTitle,
+            leveledUp = xp?.LeveledUp ?? false,
+        });
     }
 
     // DELETE api/cohorts/{cohortId}/weeks/{weekNumber}/scripture-memory

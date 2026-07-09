@@ -30,6 +30,27 @@ public class MentorController(AppDbContext db, CohortMentorService mentors) : Co
         return isCoMentor ? cohort : null;
     }
 
+    /// A co-mentor (neither an admin nor the cohort's lead) only sees the students
+    /// assigned to them; the lead mentor and admins see the whole cohort.
+    private bool IsRestrictedTo(Cohort cohort) =>
+        !User.IsInRole("Admin") && cohort.MentorId != UserId;
+
+    /// The ids of students assigned to the current mentor, or null when they may
+    /// see everyone (lead / admin). Callers treat null as "no filter".
+    private async Task<List<string>?> AssignedStudentIdsIfRestricted(Cohort cohort) =>
+        IsRestrictedTo(cohort)
+            ? await db.StudentProgresses
+                .Where(sp => sp.CohortId == cohort.Id && sp.MentorId == UserId)
+                .Select(sp => sp.StudentId)
+                .ToListAsync()
+            : null;
+
+    /// Whether the current mentor may act on this specific student in the cohort.
+    private async Task<bool> CanAccessStudent(Cohort cohort, string studentId) =>
+        !IsRestrictedTo(cohort)
+        || await db.StudentProgresses.AnyAsync(sp =>
+            sp.CohortId == cohort.Id && sp.StudentId == studentId && sp.MentorId == UserId);
+
     // GET api/mentor/cohorts — cohorts this mentor leads
     [HttpGet("cohorts")]
     public async Task<IActionResult> GetMyCohorts()
@@ -83,10 +104,17 @@ public class MentorController(AppDbContext db, CohortMentorService mentors) : Co
         var cohort = await GetAuthorizedCohort(cohortId);
         if (cohort is null) return Forbid();
 
+        // Co-mentors only see their assigned students; the lead/admin see all.
+        var assignedIds = await AssignedStudentIdsIfRestricted(cohort);
+
         var totalTasks = await db.Tasks.CountAsync(t => t.Day.Week.CohortId == cohortId);
 
-        var students = await db.CohortUsers
-            .Where(cu => cu.CohortId == cohortId && cu.Role == CohortRole.Student)
+        var studentQuery = db.CohortUsers
+            .Where(cu => cu.CohortId == cohortId && cu.Role == CohortRole.Student);
+        if (assignedIds is not null)
+            studentQuery = studentQuery.Where(cu => assignedIds.Contains(cu.UserId));
+
+        var students = await studentQuery
             .Select(cu => new
             {
                 cu.User.Id, cu.User.FirstName, cu.User.LastName, cu.User.Email,
@@ -120,7 +148,9 @@ public class MentorController(AppDbContext db, CohortMentorService mentors) : Co
                 lastActivity, stale || behind);
         }).OrderBy(r => r.LastName).ToList();
 
-        var pendingSubmissions = await db.Submissions.CountAsync(s => s.CohortId == cohortId && s.Feedback == null);
+        var pendingSubmissions = assignedIds is null
+            ? await db.Submissions.CountAsync(s => s.CohortId == cohortId && s.Feedback == null)
+            : await db.Submissions.CountAsync(s => s.CohortId == cohortId && s.Feedback == null && assignedIds.Contains(s.StudentId));
         var pendingPrayers = await db.PrayerRequests.CountAsync(pr => pr.CohortId == cohortId && pr.Status == PrayerRequestStatus.Pending);
 
         return Ok(new MentorDashboardDto(
@@ -164,10 +194,17 @@ public class MentorController(AppDbContext db, CohortMentorService mentors) : Co
     [HttpGet("cohorts/{cohortId:int}/submissions")]
     public async Task<IActionResult> GetSubmissions(int cohortId, [FromQuery] bool pendingOnly = false)
     {
-        if (await GetAuthorizedCohort(cohortId) is null) return Forbid();
+        var cohort = await GetAuthorizedCohort(cohortId);
+        if (cohort is null) return Forbid();
 
-        var submissions = await db.Submissions
-            .Where(s => s.CohortId == cohortId && (!pendingOnly || s.Feedback == null))
+        var assignedIds = await AssignedStudentIdsIfRestricted(cohort);
+
+        var query = db.Submissions
+            .Where(s => s.CohortId == cohortId && (!pendingOnly || s.Feedback == null));
+        if (assignedIds is not null)
+            query = query.Where(s => assignedIds.Contains(s.StudentId));
+
+        var submissions = await query
             .OrderBy(s => s.Feedback == null ? 0 : 1).ThenByDescending(s => s.SubmittedAt)
             .Select(s => new ReviewSubmissionDto(
                 s.Id, s.StudentId,
@@ -193,7 +230,9 @@ public class MentorController(AppDbContext db, CohortMentorService mentors) : Co
             .Include(s => s.Feedback)
             .FirstOrDefaultAsync(s => s.Id == submissionId);
         if (submission is null) return NotFound();
-        if (await GetAuthorizedCohort(submission.CohortId) is null) return Forbid();
+        var feedbackCohort = await GetAuthorizedCohort(submission.CohortId);
+        if (feedbackCohort is null) return Forbid();
+        if (!await CanAccessStudent(feedbackCohort, submission.StudentId)) return Forbid();
 
         if (submission.Feedback is null)
         {
@@ -219,7 +258,9 @@ public class MentorController(AppDbContext db, CohortMentorService mentors) : Co
     [HttpGet("cohorts/{cohortId:int}/students/{studentId}")]
     public async Task<IActionResult> GetStudentProfile(int cohortId, string studentId)
     {
-        if (await GetAuthorizedCohort(cohortId) is null) return Forbid();
+        var cohort = await GetAuthorizedCohort(cohortId);
+        if (cohort is null) return Forbid();
+        if (!await CanAccessStudent(cohort, studentId)) return Forbid();
 
         var enrolment = await db.CohortUsers
             .Include(cu => cu.User)
@@ -284,7 +325,9 @@ public class MentorController(AppDbContext db, CohortMentorService mentors) : Co
     [HttpPost("cohorts/{cohortId:int}/unlock")]
     public async Task<IActionResult> UnlockWeek(int cohortId, UnlockWeekRequest request)
     {
-        if (await GetAuthorizedCohort(cohortId) is null) return Forbid();
+        var cohort = await GetAuthorizedCohort(cohortId);
+        if (cohort is null) return Forbid();
+        if (!await CanAccessStudent(cohort, request.StudentId)) return Forbid();
 
         var maxWeek = await db.Weeks
             .Where(w => w.CohortId == cohortId && w.IsPublished)
@@ -347,6 +390,23 @@ public class MentorController(AppDbContext db, CohortMentorService mentors) : Co
         return Ok(list);
     }
 
+    // DELETE api/mentor/cohorts/{cohortId}/announcements/{id} — retract a posted
+    // announcement so it disappears from students' feeds. Author or admin only.
+    [HttpDelete("cohorts/{cohortId:int}/announcements/{id:int}")]
+    public async Task<IActionResult> DeleteAnnouncement(int cohortId, int id)
+    {
+        if (await GetAuthorizedCohort(cohortId) is null) return Forbid();
+
+        var announcement = await db.Announcements
+            .FirstOrDefaultAsync(a => a.Id == id && a.CohortId == cohortId);
+        if (announcement is null) return NotFound();
+        if (!User.IsInRole("Admin") && announcement.AuthorId != UserId) return Forbid();
+
+        db.Announcements.Remove(announcement);
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
     // POST api/mentor/cohorts/{cohortId}/sessions
     [HttpPost("cohorts/{cohortId:int}/sessions")]
     public async Task<IActionResult> AddSession(int cohortId, AddSessionRequest request)
@@ -400,6 +460,10 @@ public class MentorController(AppDbContext db, CohortMentorService mentors) : Co
 
     [HttpPost("prayer-requests/{id:int}/reject")]
     public Task<IActionResult> RejectPrayer(int id) => Moderate(id, PrayerRequestStatus.Rejected);
+
+    // Disapprove an already-decided request, returning it to the moderation queue.
+    [HttpPost("prayer-requests/{id:int}/unapprove")]
+    public Task<IActionResult> UnapprovePrayer(int id) => Moderate(id, PrayerRequestStatus.Pending);
 
     private async Task<IActionResult> Moderate(int id, PrayerRequestStatus status)
     {
