@@ -44,6 +44,7 @@ public record AuthResponse(
     string UserId,
     string Email,
     string FirstName,
+    string LastName,
     string Role,
     string Status
 );

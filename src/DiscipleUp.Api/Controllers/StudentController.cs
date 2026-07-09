@@ -33,11 +33,14 @@ public class StudentController(AppDbContext db) : ControllerBase
 
             if (cohort is not null)
             {
+                var totalWeeks = await db.Weeks.CountAsync(w => w.CohortId == cohort.Id);
+                var totalDays = Math.Max(totalWeeks * 7, 1);
                 var dayOfJourney = (int)(DateTime.UtcNow.Date - cohort.StartDate.ToDateTime(TimeOnly.MinValue).Date).TotalDays + 1;
                 cohortDto = new DashboardCohortDto(
                     cohort.Id, cohort.Name, cohort.StartDate,
                     progress.CurrentWeek, progress.CurrentDay,
-                    Math.Clamp(dayOfJourney, 1, 28));
+                    Math.Clamp(dayOfJourney, 1, totalDays),
+                    totalWeeks, totalDays);
 
                 // Today's tasks = tasks for current day in current week
                 var todayDay = await db.Days
@@ -116,7 +119,12 @@ public class StudentController(AppDbContext db) : ControllerBase
             .Select(wu => wu.WeekNumber)
             .ToHashSetAsync();
 
-        var weekDtos = weeks.Select(w =>
+        // Weeks are ordered by number; a week unlocks once the previous one is
+        // fully complete (mirrors WeekGateFilter), or via a manual unlock, or if
+        // the student's progress pointer already reached it.
+        var weekDtos = new List<WeekStatusDto>();
+        bool prevComplete = true; // week 1 has no prerequisite
+        foreach (var w in weeks)
         {
             var allTaskIds = w.Days.SelectMany(d => d.Tasks).Select(t => t.Id).ToList();
             var daysCompleted = w.Days.Count(d => d.Tasks.All(t => completedTaskIds.Contains(t.Id)) && d.Tasks.Any());
@@ -129,18 +137,22 @@ public class StudentController(AppDbContext db) : ControllerBase
             WeekProgressStatus status;
             if (weekComplete)
                 status = WeekProgressStatus.Completed;
-            else if (w.WeekNumber == 1 || w.WeekNumber <= progress.CurrentWeek || unlocks.Contains(w.WeekNumber))
+            else if (w.WeekNumber == 1 || prevComplete || w.WeekNumber <= progress.CurrentWeek || unlocks.Contains(w.WeekNumber))
                 status = WeekProgressStatus.InProgress;
             else
                 status = WeekProgressStatus.Locked;
 
-            return new WeekStatusDto(
+            weekDtos.Add(new WeekStatusDto(
                 w.Id, w.WeekNumber, w.Title, w.Description,
                 status, daysCompleted,
-                assignment is not null, assignmentSubmitted);
-        }).ToList();
+                assignment is not null, assignmentSubmitted));
 
-        return Ok(new JourneyDto(cohort.Id, cohort.Name, progress.CurrentWeek, progress.CurrentDay, weekDtos));
+            prevComplete = weekComplete;
+        }
+
+        var totalWeeks = weekDtos.Count;
+        return Ok(new JourneyDto(cohort.Id, cohort.Name, progress.CurrentWeek, progress.CurrentDay,
+            totalWeeks, Math.Max(totalWeeks * 7, 1), weekDtos));
     }
 
     // GET api/students/me/profile

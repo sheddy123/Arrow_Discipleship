@@ -77,6 +77,7 @@ builder.Services.AddHangfireServer();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddHttpClient<IEmailService, ResendEmailService>();
 builder.Services.AddScoped<DiscipleUp.Api.Services.GamificationService>();
+builder.Services.AddScoped<DiscipleUp.Api.Services.CohortMentorService>();
 builder.Services.AddScoped<DiscipleUp.Api.Jobs.StreakResetJob>();
 builder.Services.AddScoped<DiscipleUp.Api.Jobs.EmailJobs>();
 builder.Services.AddScoped<DiscipleUp.Api.Jobs.TaskReminderJob>();
@@ -85,7 +86,9 @@ builder.Services.AddScoped<DiscipleUp.Api.Services.DevSeeder>();
 
 // ── Controllers + OpenAPI ─────────────────────────────────────────────────────
 builder.Services.AddScoped<WeekGateFilter>();
-builder.Services.AddControllers(opts => opts.Filters.Add<WeekGateFilter>());
+builder.Services.AddControllers(opts => opts.Filters.Add<WeekGateFilter>())
+    .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(
+        new System.Text.Json.Serialization.JsonStringEnumConverter()));
 builder.Services.AddOpenApi();
 builder.Services.AddSignalR();
 

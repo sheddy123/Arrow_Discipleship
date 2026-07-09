@@ -84,6 +84,9 @@ public class AuthController(
         if (user.Status == UserStatus.Pending)
             return Unauthorized(new { error = "Account is pending parental consent." });
 
+        if (user.Status == UserStatus.Suspended)
+            return Unauthorized(new { error = "This account has been deactivated. Contact an administrator." });
+
         var result = await signInManager.CheckPasswordSignInAsync(user, req.Password, lockoutOnFailure: true);
         if (!result.Succeeded)
             return Unauthorized(new { error = result.IsLockedOut ? "Account is locked. Try again later." : "Invalid credentials." });

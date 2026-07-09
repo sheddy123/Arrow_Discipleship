@@ -10,7 +10,8 @@ public record CreateCohortRequest(
     [Required] DateOnly StartDate,
     [Required] string MentorId,
     int LateEntryWindowDays = 5,
-    bool IsPaid = false
+    bool IsPaid = false,
+    [Range(1, 52)] int WeekCount = 4
 );
 
 public record UpdateCohortRequest(
@@ -37,7 +38,7 @@ public record UpdateWeekRequest(
 
 public record CreateDayRequest(
     [Required, MaxLength(200)] string Title,
-    [Required] string DevotionText,
+    string? DevotionText,
     string? ScriptureReference,
     string? ScriptureText
 );
@@ -91,12 +92,55 @@ public record ChangeRoleRequest(
     [Required] string Role
 );
 
+public record SetUserStatusRequest(
+    bool Active
+);
+
 public record AdminResetPasswordRequest(
     [Required, MinLength(8)] string NewPassword
 );
 
 public record EnrolStudentRequest(
     [Required] string StudentId
+);
+
+// ── Mentor assignment ─────────────────────────────────────────────────────────
+
+public record AddCohortMentorRequest(
+    [Required] string MentorId
+);
+
+public record AssignStudentMentorRequest(
+    string? MentorId
+);
+
+public record AutoAssignMentorsRequest(
+    bool RedistributeAll = false
+);
+
+public record MoveStudentRequest(
+    [Required] int CohortId
+);
+
+public record CohortRosterDto(
+    IEnumerable<RosterMentorDto> Mentors,
+    IEnumerable<RosterStudentDto> Students
+);
+
+public record RosterMentorDto(
+    string Id,
+    string Name,
+    string Email,
+    bool IsLead,
+    int StudentCount
+);
+
+public record RosterStudentDto(
+    string Id,
+    string Name,
+    string Email,
+    string? MentorId,
+    string? MentorName
 );
 
 // ── Response DTOs ─────────────────────────────────────────────────────────────

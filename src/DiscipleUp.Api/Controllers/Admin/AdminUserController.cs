@@ -89,6 +89,30 @@ public class AdminUserController(
         if (user is null) return NotFound();
 
         var currentRoles = await userManager.GetRolesAsync(user);
+
+        // If this user is stepping down as a mentor, clean up their mentor links:
+        // any students assigned to them become unassigned, and their co-mentor
+        // memberships are removed. Block if they lead a cohort (would orphan it).
+        if (currentRoles.Contains("Mentor") && req.Role != "Mentor")
+        {
+            var leadOf = await db.Cohorts
+                .Where(c => c.MentorId == id)
+                .Select(c => c.Name)
+                .ToListAsync(ct);
+            if (leadOf.Count > 0)
+                return BadRequest(new
+                {
+                    error = $"This user is the lead mentor of: {string.Join(", ", leadOf)}. Assign a new lead mentor to those cohorts before changing their role."
+                });
+
+            await db.StudentProgresses
+                .Where(sp => sp.MentorId == id)
+                .ExecuteUpdateAsync(s => s.SetProperty(sp => sp.MentorId, (string?)null), ct);
+            await db.CohortUsers
+                .Where(cu => cu.UserId == id && cu.Role == CohortRole.Mentor)
+                .ExecuteDeleteAsync(ct);
+        }
+
         await userManager.RemoveFromRolesAsync(user, currentRoles);
         await userManager.AddToRoleAsync(user, req.Role);
 

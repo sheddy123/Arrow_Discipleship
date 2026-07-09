@@ -1,4 +1,5 @@
 using DiscipleUp.Api.Models;
+using DiscipleUp.Api.Services;
 using DiscipleUp.Domain.Entities;
 using DiscipleUp.Domain.Enums;
 using DiscipleUp.Infrastructure.Persistence;
@@ -12,17 +13,21 @@ namespace DiscipleUp.Api.Controllers;
 [ApiController]
 [Route("api/mentor")]
 [Authorize(Roles = "Mentor,Admin")]
-public class MentorController(AppDbContext db) : ControllerBase
+public class MentorController(AppDbContext db, CohortMentorService mentors) : ControllerBase
 {
     private string UserId => User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
-    /// A mentor may only touch cohorts they are assigned to; admins may touch any.
+    /// A mentor may only touch cohorts they belong to (as lead or co-mentor);
+    /// admins may touch any.
     private async Task<Cohort?> GetAuthorizedCohort(int cohortId)
     {
         var cohort = await db.Cohorts.FindAsync(cohortId);
         if (cohort is null) return null;
         if (User.IsInRole("Admin")) return cohort;
-        return cohort.MentorId == UserId ? cohort : null;
+        if (cohort.MentorId == UserId) return cohort;
+        var isCoMentor = await db.CohortUsers.AnyAsync(cu =>
+            cu.CohortId == cohortId && cu.UserId == UserId && cu.Role == CohortRole.Mentor);
+        return isCoMentor ? cohort : null;
     }
 
     // GET api/mentor/cohorts — cohorts this mentor leads
@@ -36,7 +41,8 @@ public class MentorController(AppDbContext db) : ControllerBase
         // as its own grouped query. Projecting multiple correlated `db.X.Count(...)`
         // subqueries into the DTO constructor here crashes the query pipeline.
         var cohorts = await db.Cohorts
-            .Where(c => isAdmin || c.MentorId == userId)
+            .Where(c => isAdmin || c.MentorId == userId
+                || c.CohortUsers.Any(cu => cu.UserId == userId && cu.Role == CohortRole.Mentor))
             .OrderByDescending(c => c.StartDate)
             .Select(c => new { c.Id, c.Name, c.StartDate, Status = c.Status.ToString() })
             .ToListAsync();
@@ -94,9 +100,10 @@ public class MentorController(AppDbContext db) : ControllerBase
 
         // A student is at risk when they have no activity in the last 2 days
         // or are more than one week behind the cohort calendar.
+        var totalWeeks = Math.Max(await db.Weeks.CountAsync(w => w.CohortId == cohortId && w.IsPublished), 1);
         var dayOfJourney = Math.Clamp(
-            (int)(DateTime.UtcNow.Date - cohort.StartDate.ToDateTime(TimeOnly.MinValue).Date).TotalDays + 1, 1, 28);
-        var expectedWeek = Math.Clamp((dayOfJourney - 1) / 7 + 1, 1, 4);
+            (int)(DateTime.UtcNow.Date - cohort.StartDate.ToDateTime(TimeOnly.MinValue).Date).TotalDays + 1, 1, totalWeeks * 7);
+        var expectedWeek = Math.Clamp((dayOfJourney - 1) / 7 + 1, 1, totalWeeks);
         var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
 
         var rows = students.Select(s =>
@@ -123,6 +130,34 @@ public class MentorController(AppDbContext db) : ControllerBase
             rows.Count(r => !r.AtRisk),
             rows.Count(r => r.AtRisk),
             rows));
+    }
+
+    // GET api/mentor/cohorts/{cohortId}/roster — mentors + students with assignments
+    [HttpGet("cohorts/{cohortId:int}/roster")]
+    public async Task<IActionResult> GetRoster(int cohortId)
+    {
+        if (await GetAuthorizedCohort(cohortId) is null) return Forbid();
+        return Ok(await mentors.GetRosterAsync(cohortId));
+    }
+
+    // PUT api/mentor/cohorts/{cohortId}/students/{studentId}/mentor
+    [HttpPut("cohorts/{cohortId:int}/students/{studentId}/mentor")]
+    public async Task<IActionResult> AssignStudentMentor(int cohortId, string studentId, AssignStudentMentorRequest req)
+    {
+        if (await GetAuthorizedCohort(cohortId) is null) return Forbid();
+        var error = await mentors.AssignStudentAsync(cohortId, studentId, req.MentorId);
+        return error is null ? Ok(new { message = "Assignment updated." }) : BadRequest(new { error });
+    }
+
+    // POST api/mentor/cohorts/{cohortId}/auto-assign-mentors
+    [HttpPost("cohorts/{cohortId:int}/auto-assign-mentors")]
+    public async Task<IActionResult> AutoAssignMentors(int cohortId, AutoAssignMentorsRequest req)
+    {
+        if (await GetAuthorizedCohort(cohortId) is null) return Forbid();
+        var mentorIds = await mentors.GetMentorIdsAsync(cohortId);
+        if (mentorIds.Count == 0) return BadRequest(new { error = "Add a mentor to this cohort first." });
+        var changed = await mentors.AutoAssignAsync(cohortId, req.RedistributeAll);
+        return Ok(new { changed });
     }
 
     // GET api/mentor/cohorts/{cohortId}/submissions?pendingOnly=true
@@ -250,8 +285,12 @@ public class MentorController(AppDbContext db) : ControllerBase
     public async Task<IActionResult> UnlockWeek(int cohortId, UnlockWeekRequest request)
     {
         if (await GetAuthorizedCohort(cohortId) is null) return Forbid();
-        if (request.WeekNumber is < 2 or > 4)
-            return BadRequest(new { error = "Only weeks 2–4 can be manually unlocked." });
+
+        var maxWeek = await db.Weeks
+            .Where(w => w.CohortId == cohortId && w.IsPublished)
+            .MaxAsync(w => (int?)w.WeekNumber) ?? 0;
+        if (request.WeekNumber < 2 || request.WeekNumber > maxWeek)
+            return BadRequest(new { error = $"Only weeks 2–{Math.Max(maxWeek, 2)} can be manually unlocked." });
 
         var enrolled = await db.CohortUsers.AnyAsync(cu =>
             cu.CohortId == cohortId && cu.UserId == request.StudentId && cu.Role == CohortRole.Student);

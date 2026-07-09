@@ -8,7 +8,9 @@ public record DashboardCohortDto(
     DateOnly StartDate,
     int CurrentWeek,
     int CurrentDay,
-    int DayOfJourney
+    int DayOfJourney,
+    int TotalWeeks,
+    int TotalDays
 );
 
 public record DashboardTaskDto(int Id, string Title, bool IsCompleted);
@@ -44,6 +46,8 @@ public record JourneyDto(
     string CohortName,
     int CurrentWeek,
     int CurrentDay,
+    int TotalWeeks,
+    int TotalDays,
     IEnumerable<WeekStatusDto> Weeks
 );
 
@@ -98,3 +102,42 @@ public record TaskCompleteResponse(bool AllDayTasksDone, bool WeekComplete, int 
 // ── Assignment submission ─────────────────────────────────────────────────────
 
 public record SubmitAssignmentRequest(string? TextContent);
+
+// ── Leaderboard ───────────────────────────────────────────────────────────────
+
+public record LeaderboardEntryDto(int Rank, string Name, int CurrentStreak, int TasksCompleted, bool IsMe);
+
+public record LeaderboardOptInRequest(bool OptIn);
+
+// ── Student profile ───────────────────────────────────────────────────────────
+
+public record ProfileBadgeDto(string Name, string Description, bool Earned, DateTime? EarnedAt);
+
+public record StudentProfileDto(
+    string FirstName,
+    string LastName,
+    string Email,
+    string Timezone,
+    bool IsOnLeaderboard,
+    IEnumerable<ProfileBadgeDto> Badges
+);
+
+// ── Parent view ───────────────────────────────────────────────────────────────
+
+public record ChildSummaryDto(string Id, string FirstName, string LastName);
+
+public record ChildWeekDto(int WeekNumber, string Title, int DaysCompleted, bool AssignmentSubmitted, bool HasAssignment);
+
+public record ChildDashboardDto(
+    string FirstName,
+    string LastName,
+    string? CohortName,
+    int CurrentWeek,
+    int CurrentDay,
+    int CurrentStreak,
+    int LongestStreak,
+    int TasksCompleted,
+    int TotalTasks,
+    IEnumerable<ProfileBadgeDto> Badges,
+    IEnumerable<ChildWeekDto> Weeks
+);
