@@ -17,10 +17,13 @@ public record DashboardTaskDto(int Id, string Title, bool IsCompleted);
 
 public record DashboardBadgeDto(string Name, string IconUrl, DateTime EarnedAt);
 
+public record LevelDto(int Level, string Title, int Xp, int XpIntoLevel, int XpForNextLevel);
+
 public record DashboardDto(
     int CurrentStreak,
     int LongestStreak,
     int TotalTasksCompleted,
+    LevelDto Level,
     DashboardCohortDto? Cohort,
     IEnumerable<DashboardTaskDto> TodaysTasks,
     IEnumerable<DashboardBadgeDto> RecentBadges
@@ -97,11 +100,42 @@ public record WeekContentDto(
 
 // ── Task completion ───────────────────────────────────────────────────────────
 
-public record TaskCompleteResponse(bool AllDayTasksDone, bool WeekComplete, int NewStreak);
+public record TaskCompleteResponse(
+    bool AllDayTasksDone,
+    bool WeekComplete,
+    int NewStreak,
+    int XpGained,
+    int Xp,
+    int Level,
+    string LevelTitle,
+    bool LeveledUp);
+
+public record AssignmentSubmitResponse(
+    string Message,
+    int XpGained,
+    int Xp,
+    int Level,
+    string LevelTitle,
+    bool LeveledUp);
 
 // ── Assignment submission ─────────────────────────────────────────────────────
 
 public record SubmitAssignmentRequest(string? TextContent);
+
+// ── Daily quests ──────────────────────────────────────────────────────────────
+
+public record QuestDto(
+    int Id,
+    string Type,
+    string Title,
+    string Description,
+    int Target,
+    int Progress,
+    int RewardXp,
+    bool Completed,
+    bool Claimed);
+
+public record ClaimQuestResponse(int RewardXp, int Xp, int Level, string LevelTitle, bool LeveledUp);
 
 // ── Leaderboard ───────────────────────────────────────────────────────────────
 
@@ -119,6 +153,7 @@ public record StudentProfileDto(
     string Email,
     string Timezone,
     bool IsOnLeaderboard,
+    LevelDto Level,
     IEnumerable<ProfileBadgeDto> Badges
 );
 

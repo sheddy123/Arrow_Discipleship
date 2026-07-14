@@ -143,6 +143,36 @@ public record RosterStudentDto(
     string? MentorName
 );
 
+// ── Badges ────────────────────────────────────────────────────────────────────
+
+public record BadgeDto(
+    int Id,
+    string Type,
+    string Name,
+    string Description,
+    string? IconUrl,
+    string Criterion,
+    int Threshold,
+    bool IsCustom,
+    int EarnedCount
+);
+
+public record CreateBadgeRequest(
+    [Required, MaxLength(100)] string Name,
+    [Required, MaxLength(300)] string Description,
+    string? IconUrl,
+    [Required] BadgeCriterion Criterion,
+    [Range(1, 100000)] int Threshold
+);
+
+public record UpdateBadgeRequest(
+    [Required, MaxLength(100)] string Name,
+    [Required, MaxLength(300)] string Description,
+    string? IconUrl,
+    BadgeCriterion Criterion,
+    [Range(1, 100000)] int Threshold
+);
+
 // ── Response DTOs ─────────────────────────────────────────────────────────────
 
 public record CohortSummaryDto(

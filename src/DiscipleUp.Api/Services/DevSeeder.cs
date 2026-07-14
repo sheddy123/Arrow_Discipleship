@@ -188,6 +188,11 @@ public class DevSeeder(
                 LastActivityDate = today.AddDays(-staleDays),
                 TotalTasksCompleted = completedCount,
                 IsOnLeaderboard = onBoard,
+                // Approximate the XP they'd have accrued: every task, plus the
+                // assignment + scripture + week bonus for each finished week.
+                Xp = completedCount * GamificationService.TaskXp
+                    + Math.Max(0, curWeek - 1) * (GamificationService.AssignmentXp
+                        + GamificationService.ScriptureXp + GamificationService.WeekCompleteXp),
             });
 
             // Submit assignments for fully-completed weeks

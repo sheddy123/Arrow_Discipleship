@@ -10,14 +10,14 @@ public static class EmailTemplates
         <div style="font-family:Arial,Helvetica,sans-serif;background:#F4F3FA;padding:32px 16px">
           <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:14px;overflow:hidden">
             <div style="background:#160F2E;padding:20px 28px">
-              <span style="font-size:20px;font-weight:800;color:#fff">Disciple<span style="color:#F59E0B">Up</span></span>
+              <span style="font-size:20px;font-weight:800;color:#fff">Arr<span style="color:#F59E0B">ows</span></span>
             </div>
             <div style="padding:28px">
               <h2 style="margin:0 0 14px;color:#1E1B4B;font-size:18px">{{title}}</h2>
               <div style="color:#475569;font-size:14px;line-height:1.7">{{body}}</div>
             </div>
             <div style="padding:16px 28px;border-top:1px solid #E2E8F0;color:#94A3B8;font-size:12px">
-              DiscipleUp · 28-day discipleship training
+              Arrows · 28-day discipleship training
             </div>
           </div>
         </div>

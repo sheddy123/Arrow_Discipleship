@@ -77,6 +77,7 @@ builder.Services.AddHangfireServer();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddHttpClient<IEmailService, ResendEmailService>();
 builder.Services.AddScoped<DiscipleUp.Api.Services.GamificationService>();
+builder.Services.AddScoped<DiscipleUp.Api.Services.QuestService>();
 builder.Services.AddScoped<DiscipleUp.Api.Services.CohortMentorService>();
 builder.Services.AddScoped<DiscipleUp.Api.Jobs.StreakResetJob>();
 builder.Services.AddScoped<DiscipleUp.Api.Jobs.EmailJobs>();
