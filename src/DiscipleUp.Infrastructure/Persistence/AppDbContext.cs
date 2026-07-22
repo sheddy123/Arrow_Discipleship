@@ -28,6 +28,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<PrayerRequest> PrayerRequests => Set<PrayerRequest>();
     public DbSet<ScriptureMemory> ScriptureMemories => Set<ScriptureMemory>();
     public DbSet<Announcement> Announcements => Set<Announcement>();
+    public DbSet<DailyQuest> DailyQuests => Set<DailyQuest>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -108,6 +109,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             .HasForeignKey(sp => sp.CohortId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        builder.Entity<StudentProgress>()
+            .HasOne(sp => sp.Mentor)
+            .WithMany()
+            .HasForeignKey(sp => sp.MentorId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.Entity<Submission>()
             .HasOne(s => s.Student)
             .WithMany()
@@ -171,6 +178,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         builder.Entity<Announcement>()
             .HasOne(a => a.Cohort).WithMany().HasForeignKey(a => a.CohortId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<DailyQuest>()
+            .HasOne(q => q.Student).WithMany().HasForeignKey(q => q.StudentId)
+            .OnDelete(DeleteBehavior.Cascade);
+        builder.Entity<DailyQuest>()
+            .HasIndex(q => new { q.StudentId, q.CohortId, q.LocalDate, q.Type }).IsUnique();
 
         // Seed badge catalogue
         builder.Entity<Badge>().HasData(

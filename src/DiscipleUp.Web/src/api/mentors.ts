@@ -98,26 +98,56 @@ export interface PrayerPost {
   createdAt: string
 }
 
+export interface RosterMentor {
+  id: string
+  name: string
+  email: string
+  isLead: boolean
+  studentCount: number
+}
+
+export interface RosterStudent {
+  id: string
+  name: string
+  email: string
+  mentorId: string | null
+  mentorName: string | null
+}
+
+export interface CohortRoster {
+  mentors: RosterMentor[]
+  students: RosterStudent[]
+}
+
 export const mentorsApi = {
-  getCohorts: () => client.get<MentorCohortSummary[]>('/api/mentor/cohorts'),
+  getCohorts: () => client.get<MentorCohortSummary[]>('/mentor/cohorts'),
+  getRoster: (cohortId: number) =>
+    client.get<CohortRoster>(`/mentor/cohorts/${cohortId}/roster`),
+  assignStudentMentor: (cohortId: number, studentId: string, mentorId: string | null) =>
+    client.put(`/mentor/cohorts/${cohortId}/students/${studentId}/mentor`, { mentorId }),
+  autoAssignMentors: (cohortId: number, redistributeAll: boolean) =>
+    client.post<{ changed: number }>(`/mentor/cohorts/${cohortId}/auto-assign-mentors`, { redistributeAll }),
   getDashboard: (cohortId: number) =>
-    client.get<MentorDashboard>(`/api/mentor/cohorts/${cohortId}/dashboard`),
+    client.get<MentorDashboard>(`/mentor/cohorts/${cohortId}/dashboard`),
   getSubmissions: (cohortId: number, pendingOnly = false) =>
-    client.get<ReviewSubmission[]>(`/api/mentor/cohorts/${cohortId}/submissions`, { params: { pendingOnly } }),
+    client.get<ReviewSubmission[]>(`/mentor/cohorts/${cohortId}/submissions`, { params: { pendingOnly } }),
   leaveFeedback: (submissionId: number, comment: string) =>
-    client.post(`/api/mentor/submissions/${submissionId}/feedback`, { comment }),
+    client.post(`/mentor/submissions/${submissionId}/feedback`, { comment }),
   getStudentProfile: (cohortId: number, studentId: string) =>
-    client.get<MentorStudentProfile>(`/api/mentor/cohorts/${cohortId}/students/${studentId}`),
+    client.get<MentorStudentProfile>(`/mentor/cohorts/${cohortId}/students/${studentId}`),
   unlockWeek: (cohortId: number, studentId: string, weekNumber: number) =>
-    client.post(`/api/mentor/cohorts/${cohortId}/unlock`, { studentId, weekNumber }),
+    client.post(`/mentor/cohorts/${cohortId}/unlock`, { studentId, weekNumber }),
   createAnnouncement: (cohortId: number, title: string, content: string) =>
-    client.post(`/api/mentor/cohorts/${cohortId}/announcements`, { title, content }),
+    client.post(`/mentor/cohorts/${cohortId}/announcements`, { title, content }),
   getAnnouncements: (cohortId: number) =>
-    client.get<Announcement[]>(`/api/mentor/cohorts/${cohortId}/announcements`),
+    client.get<Announcement[]>(`/mentor/cohorts/${cohortId}/announcements`),
+  deleteAnnouncement: (cohortId: number, id: number) =>
+    client.delete(`/mentor/cohorts/${cohortId}/announcements/${id}`),
   addSession: (cohortId: number, weekNumber: number, title: string, videoUrl: string, description?: string) =>
-    client.post(`/api/mentor/cohorts/${cohortId}/sessions`, { weekNumber, title, videoUrl, description }),
+    client.post(`/mentor/cohorts/${cohortId}/sessions`, { weekNumber, title, videoUrl, description }),
   getPrayerRequests: (cohortId: number, status?: string) =>
-    client.get<PrayerPost[]>(`/api/mentor/cohorts/${cohortId}/prayer-requests`, { params: { status } }),
-  approvePrayer: (id: number) => client.post(`/api/mentor/prayer-requests/${id}/approve`),
-  rejectPrayer: (id: number) => client.post(`/api/mentor/prayer-requests/${id}/reject`),
+    client.get<PrayerPost[]>(`/mentor/cohorts/${cohortId}/prayer-requests`, { params: { status } }),
+  approvePrayer: (id: number) => client.post(`/mentor/prayer-requests/${id}/approve`),
+  rejectPrayer: (id: number) => client.post(`/mentor/prayer-requests/${id}/reject`),
+  unapprovePrayer: (id: number) => client.post(`/mentor/prayer-requests/${id}/unapprove`),
 }

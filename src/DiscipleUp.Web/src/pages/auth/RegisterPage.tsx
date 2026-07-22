@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { authApi } from '@/api/auth'
 import { useAuthStore } from '@/store/authStore'
+import { Combobox } from '@/components/ui/combobox'
 
 const TIMEZONES = Intl.supportedValuesOf('timeZone')
 
@@ -37,7 +38,7 @@ export default function RegisterPage() {
         return
       }
       setAuth(
-        { userId: data.userId, email: data.email, firstName: data.firstName, role: data.role, status: data.status },
+        { userId: data.userId, email: data.email, firstName: data.firstName, lastName: data.lastName, role: data.role, status: data.status },
         data.accessToken,
         data.refreshToken,
       )
@@ -52,7 +53,7 @@ export default function RegisterPage() {
 
   if (message) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+      <div className="min-h-screen w-full flex items-center justify-center bg-gray-50 px-4">
         <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm border border-gray-100 p-8 text-center">
           <div className="text-4xl mb-4">📬</div>
           <h2 className="text-xl font-bold text-gray-900 mb-2">Check your parent's inbox</h2>
@@ -66,7 +67,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-8">
+    <div className="min-h-screen w-full flex items-center justify-center bg-gray-50 px-4 py-8">
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
         <h1 className="text-2xl font-bold text-gray-900 mb-1">Create your account</h1>
         <p className="text-sm text-gray-500 mb-6">Join the DiscipleUp journey</p>
@@ -118,11 +119,12 @@ export default function RegisterPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Timezone</label>
-            <select value={form.timezone}
-              onChange={(e) => setForm({ ...form, timezone: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
-              {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
-            </select>
+            <Combobox
+              options={TIMEZONES}
+              value={form.timezone}
+              onValueChange={(tz) => setForm({ ...form, timezone: tz })}
+              placeholder="Search timezone…"
+            />
           </div>
 
           {requiresParent && (

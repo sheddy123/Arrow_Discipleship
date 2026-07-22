@@ -27,7 +27,7 @@ export default function ConsentCompletePage() {
 
   if (!token) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+      <div className="min-h-screen w-full flex items-center justify-center bg-gray-50 px-4">
         <div className="text-center">
           <p className="text-gray-600 mb-4">Invalid consent link.</p>
           <Link to="/login" className="text-purple-600 hover:underline text-sm">Back to sign in</Link>
@@ -37,7 +37,7 @@ export default function ConsentCompletePage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+    <div className="min-h-screen w-full flex items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
         <h1 className="text-2xl font-bold text-gray-900 mb-1">Parent registration</h1>
         <p className="text-sm text-gray-500 mb-6">

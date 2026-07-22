@@ -2,11 +2,12 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { mentorsApi } from '@/api/mentors'
 import { useMentorCohort } from '@/hooks/useMentorCohort'
+import { Combobox } from '@/components/ui/combobox'
 
 const inputStyle: React.CSSProperties = {
-  width: '100%', border: '1.5px solid var(--border)', borderRadius: 10,
+  width: '100%', border: '1.5px solid var(--du-border)', borderRadius: 10,
   padding: '11px 14px', fontFamily: 'Inter,sans-serif', fontSize: 13,
-  color: 'var(--text)', outline: 'none', background: 'var(--card)',
+  color: 'var(--text)', outline: 'none', background: 'var(--du-card)',
 }
 
 function AnnouncementComposer({ cohortId }: { cohortId: number }) {
@@ -23,8 +24,8 @@ function AnnouncementComposer({ cohortId }: { cohortId: number }) {
   })
 
   return (
-    <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '20px 22px', marginBottom: 22, boxShadow: 'var(--shadow)' }}>
-      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--primary)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+    <div style={{ background: 'var(--du-card)', border: '1px solid var(--du-border)', borderRadius: 14, padding: '20px 22px', marginBottom: 22, boxShadow: 'var(--shadow)' }}>
+      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--du-primary)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
         <i className="ti ti-speakerphone" style={{ fontSize: 11 }} /> Broadcast to cohort
       </div>
       <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Announcement title" style={{ ...inputStyle, marginBottom: 10 }} />
@@ -54,14 +55,16 @@ function SessionForm({ cohortId }: { cohortId: number }) {
   })
 
   return (
-    <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 14, padding: '20px 22px', boxShadow: 'var(--shadow)' }}>
+    <div style={{ background: 'var(--du-card)', border: '1px solid var(--du-border)', borderRadius: 14, padding: '20px 22px', boxShadow: 'var(--shadow)' }}>
       <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'var(--coral)', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
         <i className="ti ti-video" style={{ fontSize: 11 }} /> Add session video
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: 10, marginBottom: 10 }}>
-        <select value={week} onChange={e => setWeek(Number(e.target.value))} style={inputStyle}>
-          {[1, 2, 3, 4].map(w => <option key={w} value={w}>Week {w}</option>)}
-        </select>
+      <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr', gap: 10, marginBottom: 10 }}>
+        <Combobox
+          options={[1, 2, 3, 4].map(w => ({ value: String(w), label: `Week ${w}` }))}
+          value={String(week)}
+          onValueChange={(v) => v && setWeek(Number(v))}
+        />
         <input value={title} onChange={e => { setTitle(e.target.value); setSaved(false) }} placeholder="Session title" style={inputStyle} />
       </div>
       <input value={url} onChange={e => { setUrl(e.target.value); setSaved(false) }} placeholder="YouTube or Vimeo URL" style={{ ...inputStyle, marginBottom: 10 }} />
@@ -84,6 +87,8 @@ function SessionForm({ cohortId }: { cohortId: number }) {
 
 export default function MentorAnnouncePage() {
   const { cohort } = useMentorCohort()
+  const qc = useQueryClient()
+  const [confirmId, setConfirmId] = useState<number | null>(null)
 
   const { data: announcements } = useQuery({
     queryKey: ['mentor-announcements', cohort?.id],
@@ -91,13 +96,21 @@ export default function MentorAnnouncePage() {
     enabled: !!cohort,
   })
 
+  const remove = useMutation({
+    mutationFn: (id: number) => mentorsApi.deleteAnnouncement(cohort!.id, id),
+    onSuccess: () => {
+      setConfirmId(null)
+      qc.invalidateQueries({ queryKey: ['mentor-announcements', cohort?.id] })
+    },
+  })
+
   if (!cohort) return null
 
   return (
-    <div style={{ padding: '24px 32px 40px', maxWidth: 760 }}>
+    <div className="du-pad" style={{ padding: '24px 32px 40px', maxWidth: 760 }}>
       <div style={{ marginBottom: 22 }}>
         <div style={{ fontFamily: 'Sora,sans-serif', fontWeight: 800, fontSize: 24, color: 'var(--text)' }}>Announcements & Sessions</div>
-        <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 3 }}>{cohort.name}</div>
+        <div style={{ fontSize: 13, color: 'var(--du-muted)', marginTop: 3 }}>{cohort.name}</div>
       </div>
 
       <AnnouncementComposer cohortId={cohort.id} />
@@ -106,14 +119,28 @@ export default function MentorAnnouncePage() {
       </div>
 
       <div style={{ fontFamily: 'Sora,sans-serif', fontWeight: 700, fontSize: 16, color: 'var(--text)', marginBottom: 12 }}>Past announcements</div>
-      {!announcements?.length && <p style={{ fontSize: 13, color: 'var(--muted)' }}>No announcements yet.</p>}
+      {!announcements?.length && <p style={{ fontSize: 13, color: 'var(--du-muted)' }}>No announcements yet.</p>}
       {announcements?.map(a => (
-        <div key={a.id} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 18px', marginBottom: 10 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{a.title}</div>
-            <div style={{ fontSize: 11, color: 'var(--muted)' }}>{a.authorName} · {new Date(a.createdAt).toLocaleString()}</div>
+        <div key={a.id} style={{ background: 'var(--du-card)', border: '1px solid var(--du-border)', borderRadius: 12, padding: '14px 18px', marginBottom: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: 4 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', minWidth: 0, wordBreak: 'break-word' }}>{a.title}</div>
+            <button onClick={() => setConfirmId(a.id)} title="Delete announcement"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--du-muted)', display: 'flex', padding: 2, flexShrink: 0 }}>
+              <i className="ti ti-trash" style={{ fontSize: 15 }} />
+            </button>
           </div>
-          <div style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6, whiteSpace: 'pre-line' }}>{a.content}</div>
+          <div style={{ fontSize: 11, color: 'var(--du-muted)', marginBottom: 8, wordBreak: 'break-word' }}>{a.authorName} · {new Date(a.createdAt).toLocaleString()}</div>
+          <div style={{ fontSize: 13, color: 'var(--du-muted)', lineHeight: 1.6, whiteSpace: 'pre-line' }}>{a.content}</div>
+          {confirmId === a.id && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--du-border)' }}>
+              <span style={{ fontSize: 12, color: 'var(--text)', flex: 1 }}>Delete this announcement? Students will no longer see it.</span>
+              <button className="du-btn du-btn-outline du-btn-sm" onClick={() => setConfirmId(null)} disabled={remove.isPending}>Cancel</button>
+              <button className="du-btn du-btn-sm" onClick={() => remove.mutate(a.id)} disabled={remove.isPending}
+                style={{ background: 'var(--red)', color: '#fff', border: 'none' }}>
+                {remove.isPending ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          )}
         </div>
       ))}
     </div>

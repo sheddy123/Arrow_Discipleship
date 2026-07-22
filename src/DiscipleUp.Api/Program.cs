@@ -1,3 +1,4 @@
+using System;
 using System.Text;
 using DiscipleUp.Api.Filters;
 using DiscipleUp.Domain.Entities;
@@ -12,10 +13,15 @@ using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
+string? connectionString =
+    builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? Environment.GetEnvironmentVariable("SQLAZURECONNSTR_DefaultConnection") // Azure App Service (SQL Azure) connection string
+    ?? Environment.GetEnvironmentVariable("SQLCONNSTR_DefaultConnection") // other Azure formats
+    ?? Environment.GetEnvironmentVariable("DefaultConnection"); // fallback if you set an env var directly
 
-// ── Database ──────────────────────────────────────────────────────────────────
+// Register DbContext with resolved connection string
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlServer(connectionString));
 
 // ── Identity ──────────────────────────────────────────────────────────────────
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
@@ -70,7 +76,7 @@ builder.Services.AddHangfire(config => config
     .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
     .UseSimpleAssemblyNameTypeSerializer()
     .UseRecommendedSerializerSettings()
-    .UseSqlServerStorage(builder.Configuration.GetConnectionString("DefaultConnection")));
+    .UseSqlServerStorage(connectionString));
 builder.Services.AddHangfireServer();
 
 // ── Application services ──────────────────────────────────────────────────────
@@ -84,6 +90,7 @@ builder.Services.AddScoped<DiscipleUp.Api.Jobs.EmailJobs>();
 builder.Services.AddScoped<DiscipleUp.Api.Jobs.TaskReminderJob>();
 builder.Services.AddScoped<DiscipleUp.Api.Jobs.ParentSummaryJob>();
 builder.Services.AddScoped<DiscipleUp.Api.Services.DevSeeder>();
+builder.Services.AddScoped<DiscipleUp.Api.Services.ProductionSeeder>();
 
 // ── Controllers + OpenAPI ─────────────────────────────────────────────────────
 builder.Services.AddScoped<WeekGateFilter>();
@@ -118,20 +125,29 @@ using (var scope = app.Services.CreateScope())
             await roleManager.CreateAsync(new IdentityRole(role));
     }
 
-    // Dev-only demo data: test users across every role + a fully authored cohort
     if (app.Environment.IsDevelopment())
+    {
+        // Dev-only demo data: test users across every role + a fully authored cohort
         await scope.ServiceProvider.GetRequiredService<DiscipleUp.Api.Services.DevSeeder>().SeedAsync();
+    }
+    else
+    {
+        // Production: create a single admin from config so the app has a way in
+        await scope.ServiceProvider.GetRequiredService<DiscipleUp.Api.Services.ProductionSeeder>().SeedAsync();
+    }
 }
 
 // ── Middleware pipeline ───────────────────────────────────────────────────────
+// OpenAPI + Scalar docs in every environment (including the Azure deployment).
+app.MapOpenApi();
+app.MapScalarApiReference(options =>
+{
+    options.Title = "DiscipleUp API";
+    options.Theme = ScalarTheme.Purple;
+});
+
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
-    app.MapScalarApiReference(options =>
-    {
-        options.Title = "DiscipleUp API";
-        options.Theme = ScalarTheme.Purple;
-    });
     app.UseCors("ViteDev");
 }
 

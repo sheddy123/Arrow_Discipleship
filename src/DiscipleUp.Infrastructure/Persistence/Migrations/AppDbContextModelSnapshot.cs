@@ -188,6 +188,9 @@ namespace DiscipleUp.Infrastructure.Persistence.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<int>("Criterion")
+                        .HasColumnType("int");
+
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -198,6 +201,9 @@ namespace DiscipleUp.Infrastructure.Persistence.Migrations
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Threshold")
+                        .HasColumnType("int");
 
                     b.Property<int>("Type")
                         .HasColumnType("int");
@@ -210,43 +216,55 @@ namespace DiscipleUp.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = 1,
+                            Criterion = 0,
                             Description = "Complete a 3-day streak",
                             Name = "Getting Started",
+                            Threshold = 0,
                             Type = 0
                         },
                         new
                         {
                             Id = 2,
+                            Criterion = 0,
                             Description = "Complete a 7-day streak",
                             Name = "7-Day Warrior",
+                            Threshold = 0,
                             Type = 1
                         },
                         new
                         {
                             Id = 3,
+                            Criterion = 0,
                             Description = "Complete a 28-day streak and finish Day 28",
                             Name = "Journey Finisher",
+                            Threshold = 0,
                             Type = 2
                         },
                         new
                         {
                             Id = 4,
+                            Criterion = 0,
                             Description = "Submit your first assignment",
                             Name = "First Step",
+                            Threshold = 0,
                             Type = 3
                         },
                         new
                         {
                             Id = 5,
+                            Criterion = 0,
                             Description = "Complete all 7 days and submit the assignment for a week",
                             Name = "Week Champion",
+                            Threshold = 0,
                             Type = 4
                         },
                         new
                         {
                             Id = 6,
+                            Criterion = 0,
                             Description = "Complete every task on every day of a week with no missed days",
                             Name = "Perfect Week",
+                            Threshold = 0,
                             Type = 5
                         });
                 });
@@ -308,6 +326,47 @@ namespace DiscipleUp.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("CohortUsers");
+                });
+
+            modelBuilder.Entity("DiscipleUp.Domain.Entities.DailyQuest", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Claimed")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("CohortId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateOnly>("LocalDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("RewardXp")
+                        .HasColumnType("int");
+
+                    b.Property<string>("StudentId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("Target")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StudentId", "CohortId", "LocalDate", "Type")
+                        .IsUnique();
+
+                    b.ToTable("DailyQuests");
                 });
 
             modelBuilder.Entity("DiscipleUp.Domain.Entities.Day", b =>
@@ -640,6 +699,9 @@ namespace DiscipleUp.Infrastructure.Persistence.Migrations
                     b.Property<int>("LongestStreak")
                         .HasColumnType("int");
 
+                    b.Property<string>("MentorId")
+                        .HasColumnType("nvarchar(450)");
+
                     b.Property<string>("StudentId")
                         .IsRequired()
                         .HasColumnType("nvarchar(450)");
@@ -650,9 +712,14 @@ namespace DiscipleUp.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<int>("Xp")
+                        .HasColumnType("int");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CohortId");
+
+                    b.HasIndex("MentorId");
 
                     b.HasIndex("StudentId");
 
@@ -1034,6 +1101,17 @@ namespace DiscipleUp.Infrastructure.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("DiscipleUp.Domain.Entities.DailyQuest", b =>
+                {
+                    b.HasOne("DiscipleUp.Domain.Entities.ApplicationUser", "Student")
+                        .WithMany()
+                        .HasForeignKey("StudentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Student");
+                });
+
             modelBuilder.Entity("DiscipleUp.Domain.Entities.Day", b =>
                 {
                     b.HasOne("DiscipleUp.Domain.Entities.Week", "Week")
@@ -1180,6 +1258,11 @@ namespace DiscipleUp.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("DiscipleUp.Domain.Entities.ApplicationUser", "Mentor")
+                        .WithMany()
+                        .HasForeignKey("MentorId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("DiscipleUp.Domain.Entities.ApplicationUser", "Student")
                         .WithMany("StudentProgresses")
                         .HasForeignKey("StudentId")
@@ -1187,6 +1270,8 @@ namespace DiscipleUp.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Cohort");
+
+                    b.Navigation("Mentor");
 
                     b.Navigation("Student");
                 });

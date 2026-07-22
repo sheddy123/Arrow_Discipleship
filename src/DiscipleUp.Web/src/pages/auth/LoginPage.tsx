@@ -1,7 +1,12 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { AlertCircle } from 'lucide-react'
 import { authApi } from '@/api/auth'
 import { useAuthStore } from '@/store/authStore'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { ThemeSwitcher } from '@/components/ThemeSwitcher'
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -17,7 +22,7 @@ export default function LoginPage() {
     try {
       const { data } = await authApi.login(form)
       setAuth(
-        { userId: data.userId, email: data.email, firstName: data.firstName, role: data.role, status: data.status },
+        { userId: data.userId, email: data.email, firstName: data.firstName, lastName: data.lastName, role: data.role, status: data.status },
         data.accessToken,
         data.refreshToken,
       )
@@ -30,57 +35,67 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">Welcome back</h1>
-        <p className="text-sm text-gray-500 mb-6">Sign in to your DiscipleUp account</p>
+    <div className="relative flex min-h-screen w-full items-center justify-center bg-transparent px-4 py-10">
+      <div className="absolute right-4 top-4">
+        <ThemeSwitcher />
+      </div>
+      <div className="w-full max-w-sm">
+        {/* Brand */}
+        <div className="mb-6 text-center">
+          <span className="font-[Sora,sans-serif] text-2xl font-extrabold tracking-tight text-[var(--du-primary)]">
+            Disciple<span className="text-[var(--gold)]">Up</span>
+          </span>
+        </div>
 
-        {error && (
-          <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
-            {error}
-          </div>
-        )}
+        <div className="glass-panel rounded-2xl p-7 shadow-[0_10px_40px_-12px_rgba(12,36,48,.18)]">
+          <h1 className="text-xl font-bold tracking-tight text-foreground">Welcome back</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Sign in to your DiscipleUp account</p>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input
-              type="email"
-              required
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-              placeholder="you@example.com"
-            />
-          </div>
-          <div>
-            <div className="flex justify-between items-center mb-1">
-              <label className="block text-sm font-medium text-gray-700">Password</label>
-              <Link to="/forgot-password" className="text-xs text-purple-600 hover:underline">
-                Forgot password?
-              </Link>
+          {error && (
+            <div className="mt-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <AlertCircle className="mt-0.5 size-4 shrink-0" />
+              <span>{error}</span>
             </div>
-            <input
-              type="password"
-              required
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-              placeholder="••••••••"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2.5 rounded-lg bg-purple-600 text-white text-sm font-semibold hover:bg-purple-700 disabled:opacity-60 transition-colors"
-          >
-            {loading ? 'Signing in…' : 'Sign in'}
-          </button>
-        </form>
+          )}
 
-        <p className="mt-5 text-center text-sm text-gray-500">
+          <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+            <div className="grid gap-1.5">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email" type="email" required autoFocus
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                placeholder="you@example.com"
+              />
+            </div>
+            <div className="grid gap-1.5">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                <Link to="/forgot-password"
+                  className="text-xs font-medium text-[var(--du-primary)] hover:underline">
+                  Forgot password?
+                </Link>
+              </div>
+              <Input
+                id="password" type="password" required
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                placeholder="••••••••"
+              />
+            </div>
+            <Button
+              type="submit"
+              disabled={loading}
+              className="h-10 w-full bg-[var(--du-primary)] text-white hover:bg-[var(--du-primary)] hover:brightness-110"
+            >
+              {loading ? 'Signing in…' : 'Sign in'}
+            </Button>
+          </form>
+        </div>
+
+        <p className="mt-5 text-center text-sm text-muted-foreground">
           Don't have an account?{' '}
-          <Link to="/register" className="text-purple-600 hover:underline font-medium">
+          <Link to="/register" className="font-medium text-[var(--du-primary)] hover:underline">
             Sign up
           </Link>
         </p>

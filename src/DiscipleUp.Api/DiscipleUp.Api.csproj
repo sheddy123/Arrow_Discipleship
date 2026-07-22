@@ -1,9 +1,10 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>124c4300-6532-4cb7-865f-805c309c47db</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
@@ -20,5 +21,32 @@
     <ProjectReference Include="..\DiscipleUp.Application\DiscipleUp.Application.csproj" />
     <ProjectReference Include="..\DiscipleUp.Infrastructure\DiscipleUp.Infrastructure.csproj" />
   </ItemGroup>
+
+  <!--
+    Build the React SPA (DiscipleUp.Web) and fold its output into the publish set.
+    Vite is configured to emit into this project's wwwroot (see vite.config.ts),
+    which UseStaticFiles/UseDefaultFiles then serve. This runs only on `dotnet
+    publish` — regular build/run for local dev is untouched (use the Vite dev
+    server there).
+  -->
+  <PropertyGroup>
+    <SpaRoot>..\DiscipleUp.Web\</SpaRoot>
+  </PropertyGroup>
+
+  <Target Name="PublishSpa" AfterTargets="ComputeFilesToPublish">
+    <Message Importance="high" Text="Building React SPA in $(SpaRoot) ..." />
+    <!-- Clean, reproducible install only when deps are missing (e.g. fresh CI);
+         local re-publishes reuse node_modules and skip straight to the build. -->
+    <Exec WorkingDirectory="$(SpaRoot)" Command="npm ci"
+          Condition="!Exists('$(SpaRoot)node_modules')" />
+    <Exec WorkingDirectory="$(SpaRoot)" Command="npm run build" />
+    <ItemGroup>
+      <SpaDist Include="wwwroot\**" />
+      <ResolvedFileToPublish Include="@(SpaDist->'%(FullPath)')" Exclude="@(ResolvedFileToPublish)">
+        <RelativePath>%(SpaDist.Identity)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
+  </Target>
 
 </Project>

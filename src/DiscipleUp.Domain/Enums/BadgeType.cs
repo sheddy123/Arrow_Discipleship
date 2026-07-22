@@ -7,5 +7,9 @@ public enum BadgeType
     JourneyFinisher,
     FirstStep,
     WeekChampion,
-    PerfectWeek
+    PerfectWeek,
+
+    /// Admin-authored badge, awarded by a configurable <see cref="BadgeCriterion"/>
+    /// rather than one of the built-in triggers above.
+    Custom
 }

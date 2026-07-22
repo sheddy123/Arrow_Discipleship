@@ -1,21 +1,87 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Plus, X, KeyRound, CheckCircle2, AlertCircle, UserPlus, UserCheck, UserX } from 'lucide-react'
 import { adminApi, type UserSummary } from '@/api/admin'
+import { cn } from '@/lib/utils'
+import { useIsMobile } from '@/hooks/useIsMobile'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Combobox } from '@/components/ui/combobox'
+import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table'
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog'
 
 const ROLES = ['Student', 'Mentor', 'Parent', 'Admin']
 const TIMEZONES = Intl.supportedValuesOf('timeZone')
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+type InviteErrors = { firstName?: string; lastName?: string; email?: string }
+
+const roleBadge: Record<string, string> = {
+  Student: 'bg-[var(--primary-light)] text-[var(--du-primary)]',
+  Mentor:  'bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300',
+  Parent:  'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+  Admin:   'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900',
+}
+const statusBadge = (status: string) =>
+  status === 'Active'
+    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+    : status === 'Suspended'
+      ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
+      : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'
+
+const tealBtn = 'bg-[var(--du-primary)] text-white hover:bg-[var(--du-primary)] hover:brightness-110'
 
 export default function UsersPage() {
   const qc = useQueryClient()
+  const isMobile = useIsMobile()
   const [showInvite, setShowInvite] = useState(false)
   const [resetTarget, setResetTarget] = useState<UserSummary | null>(null)
   const [inviteForm, setInviteForm] = useState({
     firstName: '', lastName: '', email: '', role: 'Student',
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   })
+  const [inviteErrors, setInviteErrors] = useState<InviteErrors>({})
   const [newPassword, setNewPassword] = useState('')
   const [feedback, setFeedback] = useState('')
   const [error, setError] = useState('')
+
+  // Update a field and clear its validation error as the user types
+  function updateInvite(patch: Partial<typeof inviteForm>) {
+    setInviteForm((f) => ({ ...f, ...patch }))
+    setInviteErrors((er) => {
+      const next = { ...er }
+      for (const k of Object.keys(patch)) delete next[k as keyof InviteErrors]
+      return next
+    })
+  }
+
+  function validateInvite(): InviteErrors {
+    const e: InviteErrors = {}
+    if (!inviteForm.firstName.trim()) e.firstName = 'First name is required.'
+    if (!inviteForm.lastName.trim()) e.lastName = 'Last name is required.'
+    if (!inviteForm.email.trim()) e.email = 'Email is required.'
+    else if (!EMAIL_RE.test(inviteForm.email.trim())) e.email = 'Enter a valid email address.'
+    return e
+  }
+
+  function submitInvite() {
+    const errs = validateInvite()
+    setInviteErrors(errs)
+    if (Object.keys(errs).length === 0) invite.mutate()
+  }
+
+  function openInviteDialog() {
+    setInviteErrors({})
+    setShowInvite(true)
+  }
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['admin', 'users'],
@@ -24,7 +90,7 @@ export default function UsersPage() {
 
   const invite = useMutation({
     mutationFn: () => adminApi.inviteUser(inviteForm),
-    onSuccess: (res) => {
+    onSuccess: (res: any) => {
       qc.invalidateQueries({ queryKey: ['admin', 'users'] })
       setFeedback(`User invited. Temporary password: ${res.data.devTempPassword}`)
       setShowInvite(false)
@@ -38,6 +104,12 @@ export default function UsersPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'users'] }),
   })
 
+  const toggleStatus = useMutation({
+    mutationFn: ({ id, active }: { id: string; active: boolean }) => adminApi.setUserStatus(id, active),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'users'] }),
+    onError: (err: any) => setError(err.response?.data?.error ?? 'Could not update status.'),
+  })
+
   const resetPassword = useMutation({
     mutationFn: () => adminApi.adminResetPassword(resetTarget!.id, newPassword),
     onSuccess: () => {
@@ -49,170 +121,279 @@ export default function UsersPage() {
   })
 
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-gray-900">Users</h1>
-        <button
-          onClick={() => setShowInvite(true)}
-          className="px-4 py-2 rounded-lg bg-purple-600 text-white text-sm font-semibold hover:bg-purple-700 transition-colors"
-        >
-          + Invite user
-        </button>
+    <div className="mx-auto max-w-6xl p-6 md:p-8">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-2xl font-bold tracking-tight">Users</h1>
+            {!isLoading && (
+              <span className="rounded-full bg-muted px-2.5 py-0.5 text-sm font-medium text-muted-foreground tabular-nums">
+                {(users as UserSummary[]).length}
+              </span>
+            )}
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Manage roles and passwords for students, mentors, parents, and admins.
+          </p>
+        </div>
+        <Button size="lg" className={tealBtn} onClick={openInviteDialog}>
+          <Plus className="size-4" />
+          Invite user
+        </Button>
       </div>
 
       {feedback && (
-        <div className="mb-4 p-3 rounded-lg bg-green-50 border border-green-200 text-sm text-green-700 flex justify-between">
-          {feedback}
-          <button onClick={() => setFeedback('')} className="text-green-500 hover:text-green-700">✕</button>
-        </div>
+        <Alert tone="success" onClose={() => setFeedback('')}>{feedback}</Alert>
       )}
       {error && (
-        <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700 flex justify-between">
-          {error}
-          <button onClick={() => setError('')} className="text-red-400 hover:text-red-600">✕</button>
-        </div>
+        <Alert tone="error" onClose={() => setError('')}>{error}</Alert>
       )}
 
       {isLoading ? (
-        <p className="text-sm text-gray-500">Loading…</p>
-      ) : (
-        <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100 text-left text-xs font-medium text-gray-500 uppercase tracking-wide">
-                <th className="px-5 py-3">Name</th>
-                <th className="px-5 py-3">Email</th>
-                <th className="px-5 py-3">Role</th>
-                <th className="px-5 py-3">Status</th>
-                <th className="px-5 py-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {(users as UserSummary[]).map((u) => (
-                <tr key={u.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-5 py-3 font-medium text-gray-900">{u.firstName} {u.lastName}</td>
-                  <td className="px-5 py-3 text-gray-600">{u.email}</td>
-                  <td className="px-5 py-3">
-                    <select
-                      value={u.role}
-                      onChange={(e) => changeRole.mutate({ id: u.id, role: e.target.value })}
-                      className="text-xs border border-gray-200 rounded-md px-2 py-1 focus:outline-none focus:ring-1 focus:ring-purple-400"
-                    >
-                      {ROLES.map((r) => <option key={r}>{r}</option>)}
-                    </select>
-                  </td>
-                  <td className="px-5 py-3">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                      u.status === 'Active' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'
-                    }`}>{u.status}</span>
-                  </td>
-                  <td className="px-5 py-3">
-                    <button
-                      onClick={() => setResetTarget(u)}
-                      className="text-xs text-gray-500 hover:text-purple-600 transition-colors"
-                    >
-                      Reset password
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <Card className="p-2">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4 px-4 py-3">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-4 w-48" />
+              <Skeleton className="ml-auto h-5 w-16 rounded-full" />
+            </div>
+          ))}
+        </Card>
+      ) : isMobile ? (
+        <div className="space-y-3">
+          {(users as UserSummary[]).map((u) => (
+            <Card key={u.id} className="gap-0 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="truncate font-semibold">{u.firstName} {u.lastName}</div>
+                  <div className="mt-0.5 truncate text-xs text-muted-foreground">{u.email}</div>
+                </div>
+                <div className="flex shrink-0 flex-col items-end gap-1.5">
+                  <Badge className={roleBadge[u.role] ?? 'bg-muted text-muted-foreground'}>{u.role}</Badge>
+                  <Badge className={statusBadge(u.status)}>{u.status}</Badge>
+                </div>
+              </div>
+              <div className="mt-3 flex items-center justify-between gap-2">
+                <Combobox
+                  options={ROLES}
+                  value={u.role}
+                  onValueChange={(role) => role && changeRole.mutate({ id: u.id, role })}
+                  className="w-36"
+                  emptyText="No role."
+                />
+                <div className="flex items-center gap-1">
+                  {u.status === 'Active' ? (
+                    <Button variant="ghost" size="icon-sm" aria-label="Deactivate"
+                      className="text-muted-foreground hover:text-destructive"
+                      disabled={toggleStatus.isPending}
+                      onClick={() => toggleStatus.mutate({ id: u.id, active: false })}>
+                      <UserX className="size-4" />
+                    </Button>
+                  ) : (
+                    <Button variant="ghost" size="icon-sm" aria-label="Activate"
+                      className="text-muted-foreground hover:text-emerald-600"
+                      disabled={toggleStatus.isPending}
+                      onClick={() => toggleStatus.mutate({ id: u.id, active: true })}>
+                      <UserCheck className="size-4" />
+                    </Button>
+                  )}
+                  <Button variant="ghost" size="sm" className="text-muted-foreground"
+                    onClick={() => setResetTarget(u)}>
+                    <KeyRound className="size-4" />
+                    Reset
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          ))}
         </div>
+      ) : (
+        <Card className="overflow-hidden py-0">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/40 hover:bg-muted/40">
+                <TableHead className="px-4">Name</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="px-4 text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(users as UserSummary[]).map((u) => (
+                <TableRow key={u.id}>
+                  <TableCell className="px-4 font-medium">{u.firstName} {u.lastName}</TableCell>
+                  <TableCell className="text-muted-foreground">{u.email}</TableCell>
+                  <TableCell>
+                    <Combobox
+                      options={ROLES}
+                      value={u.role}
+                      onValueChange={(role) => role && changeRole.mutate({ id: u.id, role })}
+                      className="w-36"
+                      emptyText="No role."
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Badge className={statusBadge(u.status)}>{u.status}</Badge>
+                  </TableCell>
+                  <TableCell className="px-4 text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      {u.status === 'Active' ? (
+                        <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-destructive"
+                          disabled={toggleStatus.isPending}
+                          onClick={() => toggleStatus.mutate({ id: u.id, active: false })}>
+                          <UserX className="size-4" />
+                          Deactivate
+                        </Button>
+                      ) : (
+                        <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-emerald-600"
+                          disabled={toggleStatus.isPending}
+                          onClick={() => toggleStatus.mutate({ id: u.id, active: true })}>
+                          <UserCheck className="size-4" />
+                          Activate
+                        </Button>
+                      )}
+                      <Button variant="ghost" size="sm" className="text-muted-foreground"
+                        onClick={() => setResetTarget(u)}>
+                        <KeyRound className="size-4" />
+                        Reset password
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
       )}
 
-      {/* Invite modal */}
-      {showInvite && (
-        <Modal title="Invite user" onClose={() => setShowInvite(false)}>
-          <div className="space-y-4">
+      {/* Invite dialog */}
+      <Dialog open={showInvite} onOpenChange={setShowInvite}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader className="flex-row items-center gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[var(--primary-light)] text-[var(--du-primary)]">
+              <UserPlus className="size-5" />
+            </span>
+            <div className="grid gap-0.5">
+              <DialogTitle>Invite user</DialogTitle>
+              <DialogDescription>
+                They'll receive an account with a temporary password.
+              </DialogDescription>
+            </div>
+          </DialogHeader>
+
+          <form
+            className="grid gap-4"
+            noValidate
+            onSubmit={(e) => { e.preventDefault(); submitInvite() }}
+          >
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">First name</label>
-                <input type="text" required value={inviteForm.firstName}
-                  onChange={(e) => setInviteForm({ ...inviteForm, firstName: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+              <div className="grid gap-1.5">
+                <Label htmlFor="firstName">First name</Label>
+                <Input id="firstName" value={inviteForm.firstName} autoFocus
+                  aria-invalid={!!inviteErrors.firstName}
+                  onChange={(e) => updateInvite({ firstName: e.target.value })} />
+                {inviteErrors.firstName && <FieldError>{inviteErrors.firstName}</FieldError>}
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Last name</label>
-                <input type="text" required value={inviteForm.lastName}
-                  onChange={(e) => setInviteForm({ ...inviteForm, lastName: e.target.value })}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+              <div className="grid gap-1.5">
+                <Label htmlFor="lastName">Last name</Label>
+                <Input id="lastName" value={inviteForm.lastName}
+                  aria-invalid={!!inviteErrors.lastName}
+                  onChange={(e) => updateInvite({ lastName: e.target.value })} />
+                {inviteErrors.lastName && <FieldError>{inviteErrors.lastName}</FieldError>}
               </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              <input type="email" required value={inviteForm.email}
-                onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+            <div className="grid gap-1.5">
+              <Label htmlFor="email">Email</Label>
+              <Input id="email" type="email" value={inviteForm.email}
+                aria-invalid={!!inviteErrors.email}
+                onChange={(e) => updateInvite({ email: e.target.value })} />
+              {inviteErrors.email && <FieldError>{inviteErrors.email}</FieldError>}
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-              <select value={inviteForm.role}
-                onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
-                {ROLES.map((r) => <option key={r}>{r}</option>)}
-              </select>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1.5">
+                <Label htmlFor="role">Role</Label>
+                <Combobox
+                  id="role"
+                  options={ROLES}
+                  value={inviteForm.role}
+                  onValueChange={(role) => updateInvite({ role })}
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label htmlFor="timezone">Timezone</Label>
+                <Combobox
+                  id="timezone"
+                  options={TIMEZONES}
+                  value={inviteForm.timezone}
+                  onValueChange={(tz) => updateInvite({ timezone: tz })}
+                  placeholder="Search timezone…"
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Timezone</label>
-              <select value={inviteForm.timezone}
-                onChange={(e) => setInviteForm({ ...inviteForm, timezone: e.target.value })}
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
-                {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
-              </select>
-            </div>
-            <div className="flex gap-3 pt-2">
-              <button onClick={() => invite.mutate()} disabled={invite.isPending}
-                className="px-5 py-2 rounded-lg bg-purple-600 text-white text-sm font-semibold hover:bg-purple-700 disabled:opacity-60 transition-colors">
-                {invite.isPending ? 'Inviting…' : 'Send invite'}
-              </button>
-              <button onClick={() => setShowInvite(false)}
-                className="px-5 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-                Cancel
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
 
-      {/* Reset password modal */}
-      {resetTarget && (
-        <Modal title={`Reset password — ${resetTarget.email}`} onClose={() => setResetTarget(null)}>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">New password</label>
-              <input type="password" minLength={8} value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                placeholder="Min. 8 characters" />
-            </div>
-            <div className="flex gap-3 pt-2">
-              <button onClick={() => resetPassword.mutate()} disabled={resetPassword.isPending || newPassword.length < 8}
-                className="px-5 py-2 rounded-lg bg-purple-600 text-white text-sm font-semibold hover:bg-purple-700 disabled:opacity-60 transition-colors">
-                {resetPassword.isPending ? 'Resetting…' : 'Reset password'}
-              </button>
-              <button onClick={() => setResetTarget(null)}
-                className="px-5 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
-                Cancel
-              </button>
-            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setShowInvite(false)}>Cancel</Button>
+              <Button type="submit" className={tealBtn} disabled={invite.isPending}>
+                {invite.isPending ? 'Inviting…' : 'Send invite'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset password dialog */}
+      <Dialog open={!!resetTarget} onOpenChange={(o) => !o && setResetTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reset password</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-1.5">
+            <Label htmlFor="newPassword">
+              New password for <span className="font-medium text-foreground">{resetTarget?.email}</span>
+            </Label>
+            <Input id="newPassword" type="password" minLength={8} value={newPassword}
+              placeholder="Min. 8 characters"
+              aria-invalid={newPassword.length > 0 && newPassword.length < 8}
+              onChange={(e) => setNewPassword(e.target.value)} />
+            {newPassword.length > 0 && newPassword.length < 8 && (
+              <FieldError>Password must be at least 8 characters.</FieldError>
+            )}
           </div>
-        </Modal>
-      )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResetTarget(null)}>Cancel</Button>
+            <Button className={tealBtn}
+              onClick={() => resetPassword.mutate()}
+              disabled={resetPassword.isPending || newPassword.length < 8}>
+              {resetPassword.isPending ? 'Resetting…' : 'Reset password'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
 
-function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
+function FieldError({ children }: { children: React.ReactNode }) {
+  return <p className="text-xs font-medium text-destructive">{children}</p>
+}
+
+function Alert({ tone, onClose, children }: {
+  tone: 'success' | 'error'; onClose: () => void; children: React.ReactNode
+}) {
+  const Icon = tone === 'success' ? CheckCircle2 : AlertCircle
   return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 px-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-base font-semibold text-gray-900">{title}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
-        </div>
-        {children}
-      </div>
+    <div className={cn(
+      'mb-4 flex items-start gap-2.5 rounded-lg border p-3 text-sm',
+      tone === 'success'
+        ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-200'
+        : 'border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200',
+    )}>
+      <Icon className="mt-0.5 size-4 shrink-0" />
+      <span className="flex-1">{children}</span>
+      <button onClick={onClose} className="shrink-0 opacity-60 hover:opacity-100">
+        <X className="size-4" />
+      </button>
     </div>
   )
 }

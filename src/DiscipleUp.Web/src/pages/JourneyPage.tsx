@@ -1,145 +1,200 @@
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { studentsApi, type WeekCard } from '@/api/students'
+import { PageSkeleton, EmptyState } from '@/components/Skeleton'
 
-function WeekCardLarge({ week, cohortId, currentWeek, currentDay }: { week: WeekCard; cohortId: number; currentWeek: number; currentDay: number }) {
-  const navigate = useNavigate()
-  const isLocked  = week.status === 'Locked'
-  const isDone    = week.status === 'Completed'
-  const isCurrent = week.weekNumber === currentWeek
+type NodeState = 'done' | 'current' | 'upcoming' | 'locked'
 
-  const cardStyle: React.CSSProperties = isDone
-    ? { background: 'linear-gradient(135deg,#ECFDF5,#D1FAE5)', border: '1.5px solid #A7F3D0' }
-    : isCurrent
-    ? { background: 'linear-gradient(135deg,var(--primary-pale),var(--primary-light))', border: '2px solid var(--primary-mid)' }
-    : { background: 'var(--locked-bg)', border: '1.5px solid var(--border)' }
+interface PathNode {
+  key: string
+  weekNumber: number
+  kind: 'day' | 'assignment'
+  label: string
+  state: NodeState
+}
 
-  const pill = isDone
-    ? <span className="pill pill-green"><i className="ti ti-check" style={{ fontSize: 10 }} /> Done</span>
-    : isCurrent
-    ? <span className="pill pill-primary"><i className="ti ti-bolt" style={{ fontSize: 10 }} /> Active</span>
-    : <span className="pill pill-muted"><i className="ti ti-lock" style={{ fontSize: 10 }} /> Locked</span>
+// Gentle serpentine: horizontal offset (px) cycles as we walk down the trail.
+const OFFSETS = [0, 58, 92, 58, 0, -58, -92, -58]
 
-  const dayStart = (week.weekNumber - 1) * 7 + 1
+function buildNodes(weeks: WeekCard[], currentWeek: number, currentDay: number): PathNode[] {
+  const nodes: PathNode[] = []
+  for (const w of weeks) {
+    const locked = w.status === 'Locked'
+    const isCurrentWeek = w.weekNumber === currentWeek
+    for (let i = 0; i < 7; i++) {
+      let state: NodeState
+      if (locked) state = 'locked'
+      else if (i < w.daysCompleted) state = 'done'
+      else if (isCurrentWeek && i === currentDay - 1) state = 'current'
+      else state = 'upcoming'
+      nodes.push({ key: `w${w.weekNumber}d${i + 1}`, weekNumber: w.weekNumber, kind: 'day', label: String((w.weekNumber - 1) * 7 + i + 1), state })
+    }
+    if (w.hasAssignment) {
+      const state: NodeState = locked ? 'locked'
+        : w.assignmentSubmitted ? 'done'
+        : w.daysCompleted >= 7 ? 'current' : 'upcoming'
+      nodes.push({ key: `w${w.weekNumber}a`, weekNumber: w.weekNumber, kind: 'assignment', label: 'A', state })
+    }
+  }
+  return nodes
+}
+
+function Node({ node, onClick }: { node: PathNode; onClick: () => void }) {
+  const clickable = node.state !== 'locked'
+  const isAssign = node.kind === 'assignment'
+
+  const palette: Record<NodeState, { bg: string; color: string; ring: string; border: string }> = {
+    done:     { bg: isAssign ? 'linear-gradient(135deg,#FCD34D,#F97316)' : 'var(--green)', color: '#fff', ring: 'transparent', border: 'transparent' },
+    current:  { bg: isAssign ? 'linear-gradient(135deg,#FCD34D,#F97316)' : 'linear-gradient(135deg,var(--primary-mid),var(--du-primary))', color: '#fff', ring: 'var(--primary-light)', border: 'transparent' },
+    upcoming: { bg: 'var(--du-card)', color: 'var(--du-muted)', ring: 'transparent', border: '2px solid var(--du-border)' },
+    locked:   { bg: 'var(--locked-bg)', color: 'var(--locked)', ring: 'transparent', border: 'none' },
+  }
+  const p = palette[node.state]
+  const size = isAssign ? 64 : 58
+
+  const inner = node.state === 'done'
+    ? <i className="ti ti-check" style={{ fontSize: 24 }} />
+    : node.state === 'locked'
+    ? <i className="ti ti-lock" style={{ fontSize: 20 }} />
+    : isAssign
+    ? <i className="ti ti-star" style={{ fontSize: 24 }} />
+    : <span style={{ fontFamily: 'Sora,sans-serif', fontWeight: 800, fontSize: 18 }}>{node.label}</span>
 
   return (
-    <div
-      style={{ ...cardStyle, borderRadius: 18, padding: '24px 26px', cursor: isLocked ? 'default' : 'pointer', transition: 'all .18s' }}
-      onClick={() => !isLocked && navigate(`/week/${week.weekNumber}`, { state: { cohortId } })}
-      onMouseEnter={e => { if (!isLocked) { const el = e.currentTarget as HTMLElement; el.style.transform = 'translateY(-2px)'; el.style.boxShadow = '0 8px 30px rgba(91,33,182,.12)' }}}
-      onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.transform = ''; el.style.boxShadow = '' }}
+    <button
+      onClick={() => clickable && onClick()}
+      disabled={!clickable}
+      aria-label={`${isAssign ? 'Assignment' : `Day ${node.label}`} — ${node.state}`}
+      style={{
+        position: 'relative', width: size, height: size, borderRadius: '50%',
+        background: p.bg, color: p.color, border: p.border,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        cursor: clickable ? 'pointer' : 'default',
+        boxShadow: node.state === 'locked' ? 'none' : '0 6px 16px rgba(2,44,54,.18)',
+        transition: 'transform .15s',
+        transform: 'translateZ(0)',
+      }}
+      onMouseEnter={e => { if (clickable) (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1.08)' }}
+      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'scale(1)' }}
     >
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', marginBottom: 4, color: isDone ? 'var(--green)' : isCurrent ? 'var(--primary)' : 'var(--locked)' }}>
-            Week {week.weekNumber} — {isDone ? 'Completed' : isCurrent ? 'In progress' : 'Locked'}
-          </div>
-          <div style={{ fontFamily: 'Sora,sans-serif', fontWeight: 800, fontSize: 20, color: isLocked ? 'var(--locked)' : 'var(--text)', marginBottom: 4 }}>
-            {week.title}
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 16 }}>Days {dayStart}–{dayStart + 6}</div>
-        </div>
-        {pill}
-      </div>
-
-      {/* Day bubbles */}
-      <div style={{ display: 'flex', gap: 7, marginBottom: 16 }}>
-        {Array.from({ length: 7 }, (_, i) => {
-          const dayNum = dayStart + i
-          let bg = 'rgba(255,255,255,.6)', color = 'var(--muted)', border = '1px solid var(--border)', glow = 'none'
-          if (isLocked) { bg = 'var(--locked-bg)'; color = 'var(--locked)'; border = 'none' }
-          else if (i < week.daysCompleted) { bg = 'var(--green)'; color = '#fff'; border = 'none' }
-          else if (isCurrent && i === currentDay - 1) { bg = 'var(--primary)'; color = '#fff'; border = 'none'; glow = '0 0 0 3px var(--primary-light)' }
-          return (
-            <div key={i} style={{ width: 34, height: 34, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, background: bg, color, border, boxShadow: glow }}>
-              {dayNum}
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Stats */}
-      {!isLocked ? (
-        <>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-            {[
-              { val: `${week.daysCompleted}/7`, lbl: 'Days done', color: isDone ? 'var(--green)' : isCurrent ? 'var(--primary)' : 'var(--text)' },
-              { val: week.hasAssignment ? (week.assignmentSubmitted ? '1/1' : '0/1') : 'N/A', lbl: 'Assignment', color: isDone ? 'var(--green)' : isCurrent ? 'var(--primary)' : 'var(--text)' },
-              { val: `${Math.round((week.daysCompleted / 7) * 100)}%`, lbl: 'Complete', color: isDone ? 'var(--green)' : isCurrent ? 'var(--primary)' : 'var(--text)' },
-            ].map((s, i) => (
-              <div key={i} style={{ background: 'rgba(255,255,255,.5)', borderRadius: 10, padding: '10px 12px' }}>
-                <div style={{ fontFamily: 'Sora,sans-serif', fontWeight: 800, fontSize: 18, color: s.color }}>{s.val}</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1 }}>{s.lbl}</div>
-              </div>
-            ))}
-          </div>
-          {isCurrent && !isDone && (
-            <div style={{ marginTop: 14 }}>
-              <button className="du-btn du-btn-primary" style={{ width: '100%', justifyContent: 'center' }}
-                onClick={e => { e.stopPropagation(); navigate(`/week/${week.weekNumber}`, { state: { cohortId } }) }}>
-                <i className="ti ti-arrow-right" /> Continue Week {week.weekNumber}
-              </button>
-            </div>
-          )}
-        </>
-      ) : (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--locked)', fontWeight: 500, marginTop: 12 }}>
-          <i className="ti ti-lock" style={{ fontSize: 16 }} />
-          Complete all of Week {week.weekNumber - 1} to unlock this week
-        </div>
+      {node.state === 'current' && (
+        <span style={{ position: 'absolute', inset: -6, borderRadius: '50%', border: `3px solid ${p.ring}`, animation: 'du-node-pulse 1.8s ease-in-out infinite' }} />
       )}
-    </div>
+      {inner}
+      {node.state === 'current' && (
+        <span style={{ position: 'absolute', top: -30, left: '50%', transform: 'translateX(-50%)', background: 'var(--du-primary)', color: '#fff', fontSize: 10, fontWeight: 800, letterSpacing: '.06em', padding: '3px 9px', borderRadius: 8, whiteSpace: 'nowrap', boxShadow: '0 3px 10px rgba(2,44,54,.25)' }}>
+          START
+          <span style={{ position: 'absolute', bottom: -4, left: '50%', transform: 'translateX(-50%) rotate(45deg)', width: 8, height: 8, background: 'var(--du-primary)' }} />
+        </span>
+      )}
+    </button>
   )
 }
 
 export default function JourneyPage() {
+  const navigate = useNavigate()
+
   const { data, isLoading, error } = useQuery({
     queryKey: ['journey'],
     queryFn: () => studentsApi.getJourney().then(r => r.data),
   })
 
-  if (isLoading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
-      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-      <div style={{ width: 32, height: 32, borderRadius: '50%', border: '4px solid var(--primary)', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />
-    </div>
-  )
+  // Level header — reuses the cached dashboard query where available.
+  const { data: dash } = useQuery({
+    queryKey: ['dashboard'],
+    queryFn: () => studentsApi.getDashboard().then(r => r.data),
+  })
+
+  if (isLoading) return <PageSkeleton variant="grid" />
 
   if (error || !data || !('cohortId' in data)) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
-      <div style={{ textAlign: 'center' }}>
-        <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 8 }}>You're not enrolled in a cohort yet.</p>
-        <p style={{ color: 'var(--muted)', fontSize: 13 }}>Ask your admin or mentor to enrol you.</p>
-      </div>
-    </div>
+    <EmptyState icon="ti-route" title="Your journey hasn't started"
+      message="You're not enrolled in a cohort yet. Your admin or mentor will enrol you, and your discipleship journey will appear here." />
   )
 
   const journey = data as any
-  const weeks   = journey.weeks as WeekCard[]
+  const weeks = journey.weeks as WeekCard[]
+  const totalDays = journey.totalDays || weeks.length * 7 || 1
   const totalDone = weeks.reduce((s: number, w: WeekCard) => s + w.daysCompleted, 0)
-  const pct = Math.round((totalDone / 28) * 100)
+  const pct = Math.round((totalDone / totalDays) * 100)
+  const level = dash?.level
+
+  const nodes = buildNodes(weeks, journey.currentWeek, journey.currentDay)
+  // Where each week's first node sits, so we can drop a chapter banner above it.
+  const chapterStartKeys = new Set(weeks.map(w => `w${w.weekNumber}d1`))
+  const weekByNumber = new Map(weeks.map(w => [w.weekNumber, w]))
 
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 32px 0', marginBottom: 24 }}>
+      <style>{`@keyframes du-node-pulse{0%,100%{opacity:.9;transform:scale(1)}50%{opacity:.35;transform:scale(1.12)}}`}</style>
+
+      {/* Header */}
+      <div className="du-pad" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 32px 0', marginBottom: 18, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <div style={{ fontFamily: 'Sora,sans-serif', fontWeight: 800, fontSize: 24, color: 'var(--text)' }}>My Journey</div>
-          <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 3 }}>
-            28-day discipleship training · {journey.cohortName} · Day {(journey.currentWeek - 1) * 7 + journey.currentDay} / 28
+          <div style={{ fontSize: 13, color: 'var(--du-muted)', marginTop: 3 }}>
+            {journey.totalWeeks}-week quest · {journey.cohortName} · Day {(journey.currentWeek - 1) * 7 + journey.currentDay} / {totalDays}
           </div>
         </div>
-        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ width: 120, height: 6, background: 'var(--border)', borderRadius: 10, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${pct}%`, background: 'linear-gradient(90deg,var(--primary),var(--primary-mid))', borderRadius: 10 }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          {level && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: 'linear-gradient(135deg,#0C2430,#0E7490)', color: '#fff', borderRadius: 10, padding: '8px 14px' }}>
+              <span style={{ fontSize: 14 }}>⚡</span>
+              <span style={{ fontWeight: 800, fontSize: 13, fontFamily: 'Sora,sans-serif' }}>Lv {level.level}</span>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,.6)' }}>{level.title}</span>
+            </div>
+          )}
+          <div style={{ background: 'var(--du-card)', border: '1px solid var(--du-border)', borderRadius: 10, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 120, height: 6, background: 'var(--du-border)', borderRadius: 10, overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${pct}%`, background: 'linear-gradient(90deg,var(--du-primary),var(--primary-mid))', borderRadius: 10 }} />
+            </div>
+            <span style={{ fontWeight: 700, color: 'var(--du-primary)', fontSize: 13 }}>{pct}%</span>
           </div>
-          <span style={{ fontWeight: 700, color: 'var(--primary)', fontSize: 13 }}>{pct}%</span>
         </div>
       </div>
 
-      <div style={{ padding: '0 32px 40px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 22 }}>
-        {weeks.map((week: WeekCard) => (
-          <WeekCardLarge key={week.weekId} week={week} cohortId={journey.cohortId} currentWeek={journey.currentWeek} currentDay={journey.currentDay} />
-        ))}
+      {/* The trail */}
+      <div className="du-pad" style={{ padding: '10px 16px 60px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+        <div style={{ position: 'relative', width: '100%', maxWidth: 420 }}>
+          {nodes.map((node, i) => {
+            const offset = OFFSETS[i % OFFSETS.length]
+            const w = weekByNumber.get(node.weekNumber)
+            const showChapter = chapterStartKeys.has(node.key)
+            return (
+              <div key={node.key}>
+                {showChapter && w && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: i === 0 ? '4px 0 8px' : '26px 0 8px' }}>
+                    <div style={{ flex: 1, height: 1, background: 'var(--du-border)' }} />
+                    <div style={{
+                      fontSize: 11, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase',
+                      color: w.status === 'Locked' ? 'var(--locked)' : w.status === 'Completed' ? 'var(--green)' : 'var(--du-primary)',
+                      display: 'flex', alignItems: 'center', gap: 6,
+                    }}>
+                      {w.status === 'Locked' && <i className="ti ti-lock" style={{ fontSize: 12 }} />}
+                      Week {w.weekNumber} · {w.title}
+                    </div>
+                    <div style={{ flex: 1, height: 1, background: 'var(--du-border)' }} />
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '9px 0' }}>
+                  <div style={{ transform: `translateX(${offset}px)`, transition: 'transform .2s' }}>
+                    <Node node={node} onClick={() => navigate(`/week/${node.weekNumber}`, { state: { cohortId: journey.cohortId } })} />
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+
+          {/* Finish flag */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: 18 }}>
+            <div style={{ width: 60, height: 60, borderRadius: '50%', background: pct >= 100 ? 'linear-gradient(135deg,#FCD34D,#F97316)' : 'var(--locked-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: pct >= 100 ? '#fff' : 'var(--locked)', boxShadow: pct >= 100 ? '0 6px 18px rgba(249,115,22,.4)' : 'none' }}>
+              <i className="ti ti-flag-3" style={{ fontSize: 26 }} />
+            </div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: pct >= 100 ? 'var(--gold-text)' : 'var(--du-muted)', marginTop: 8 }}>
+              {pct >= 100 ? 'Journey complete! 🎉' : 'Finish line'}
+            </div>
+          </div>
+        </div>
       </div>
     </>
   )

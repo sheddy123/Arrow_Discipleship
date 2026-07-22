@@ -7,6 +7,8 @@ export interface DashboardCohort {
   currentWeek: number
   currentDay: number
   dayOfJourney: number
+  totalWeeks: number
+  totalDays: number
 }
 
 export interface DashboardTask {
@@ -21,10 +23,19 @@ export interface DashboardBadge {
   earnedAt: string
 }
 
+export interface LevelInfo {
+  level: number
+  title: string
+  xp: number
+  xpIntoLevel: number
+  xpForNextLevel: number
+}
+
 export interface Dashboard {
   currentStreak: number
   longestStreak: number
   totalTasksCompleted: number
+  level: LevelInfo
   cohort: DashboardCohort | null
   todaysTasks: DashboardTask[]
   recentBadges: DashboardBadge[]
@@ -48,6 +59,8 @@ export interface Journey {
   cohortName: string
   currentWeek: number
   currentDay: number
+  totalWeeks: number
+  totalDays: number
   weeks: WeekCard[]
 }
 
@@ -108,21 +121,112 @@ export interface TaskCompleteResponse {
   allDayTasksDone: boolean
   weekComplete: boolean
   newStreak: number
+  xpGained: number
+  xp: number
+  level: number
+  levelTitle: string
+  leveledUp: boolean
+}
+
+export interface XpAwardResponse {
+  xpGained: number
+  xp: number
+  level: number
+  levelTitle: string
+  leveledUp: boolean
+}
+
+export interface Quest {
+  id: number
+  type: string
+  title: string
+  description: string
+  target: number
+  progress: number
+  rewardXp: number
+  completed: boolean
+  claimed: boolean
+}
+
+export interface ClaimQuestResponse {
+  rewardXp: number
+  xp: number
+  level: number
+  levelTitle: string
+  leveledUp: boolean
+}
+
+export interface ProfileBadge {
+  name: string
+  description: string
+  earned: boolean
+  earnedAt: string | null
+}
+
+export interface StudentProfile {
+  firstName: string
+  lastName: string
+  email: string
+  timezone: string
+  isOnLeaderboard: boolean
+  level: LevelInfo
+  badges: ProfileBadge[]
+}
+
+export interface LeaderboardEntry {
+  rank: number
+  name: string
+  currentStreak: number
+  tasksCompleted: number
+  isMe: boolean
+}
+
+export interface Leaderboard {
+  enrolled: boolean
+  optedIn?: boolean
+  entries?: LeaderboardEntry[]
+}
+
+export interface PrayerPost {
+  id: number
+  authorName: string
+  content: string
+  status: 'Pending' | 'Approved' | 'Rejected'
+  createdAt: string
+}
+
+export interface Announcement {
+  id: number
+  title: string
+  content: string
+  authorName: string
+  createdAt: string
 }
 
 export const studentsApi = {
-  getDashboard: () => client.get<Dashboard>('/api/students/me/dashboard'),
-  getJourney: () => client.get<Journey>('/api/students/me/journey'),
+  getDashboard: () => client.get<Dashboard>('/students/me/dashboard'),
+  getJourney: () => client.get<Journey>('/students/me/journey'),
   getWeek: (cohortId: number, weekNumber: number) =>
-    client.get<WeekContent>(`/api/cohorts/${cohortId}/weeks/${weekNumber}`),
+    client.get<WeekContent>(`/cohorts/${cohortId}/weeks/${weekNumber}`),
   completeTask: (cohortId: number, taskId: number) =>
-    client.post<TaskCompleteResponse>(`/api/cohorts/${cohortId}/tasks/${taskId}/complete`),
+    client.post<TaskCompleteResponse>(`/cohorts/${cohortId}/tasks/${taskId}/complete`),
   uncompleteTask: (cohortId: number, taskId: number) =>
-    client.delete(`/api/cohorts/${cohortId}/tasks/${taskId}/complete`),
+    client.delete(`/cohorts/${cohortId}/tasks/${taskId}/complete`),
   submitAssignment: (cohortId: number, assignmentId: number, textContent: string) =>
-    client.post(`/api/cohorts/${cohortId}/assignments/${assignmentId}/submit`, { textContent }),
+    client.post<XpAwardResponse & { message: string }>(`/cohorts/${cohortId}/assignments/${assignmentId}/submit`, { textContent }),
   markScriptureMemorized: (cohortId: number, weekNumber: number) =>
-    client.post(`/api/cohorts/${cohortId}/weeks/${weekNumber}/scripture-memory`),
+    client.post<XpAwardResponse & { memorized: boolean }>(`/cohorts/${cohortId}/weeks/${weekNumber}/scripture-memory`),
   unmarkScriptureMemorized: (cohortId: number, weekNumber: number) =>
-    client.delete(`/api/cohorts/${cohortId}/weeks/${weekNumber}/scripture-memory`),
+    client.delete(`/cohorts/${cohortId}/weeks/${weekNumber}/scripture-memory`),
+  getProfile: () => client.get<StudentProfile>('/students/me/profile'),
+  setLeaderboardOptIn: (optIn: boolean) =>
+    client.put('/students/me/leaderboard', { optIn }),
+  getLeaderboard: () => client.get<Leaderboard>('/students/me/leaderboard'),
+  getAnnouncements: () => client.get<Announcement[]>('/students/me/announcements'),
+  getQuests: () => client.get<Quest[]>('/students/me/quests'),
+  claimQuest: (id: number) => client.post<ClaimQuestResponse>(`/students/me/quests/${id}/claim`),
+  getPrayerWall: (cohortId: number) =>
+    client.get<PrayerPost[]>(`/cohorts/${cohortId}/prayer-wall`),
+  postPrayerRequest: (cohortId: number, content: string) =>
+    client.post(`/cohorts/${cohortId}/prayer-wall`, { content }),
 }

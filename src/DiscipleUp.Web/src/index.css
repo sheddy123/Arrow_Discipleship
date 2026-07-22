@@ -1,37 +1,81 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
 
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+@custom-variant dark (&:is(.dark *));
+
+@layer base {
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+}
 
 :root {
-  --primary: #5B21B6;
-  --primary-mid: #7C3AED;
-  --primary-light: #EDE9FE;
-  --primary-pale: #F5F3FF;
-  --sidebar: #160F2E;
-  --sidebar-item: rgba(167,139,250,.12);
-  --sidebar-active: rgba(167,139,250,.22);
+  /* ── Brand tokens (Still Waters: deep teal + warm gold) ──
+     Namespaced --du-* so they don't collide with shadcn's default theme.
+     Migrate components to shadcn tokens over time, then retire these. */
+  --du-primary: #0E7490;
+  --du-sidebar: #0C2430;
+  --du-muted: #5E7480;
+  --du-card: #FFFFFF;
+  --du-border: #DCE6E8;
+  --du-radius: 14px;
+
+  /* ── shadcn default theme (neutral base color) ── */
+  --primary: oklch(0.205 0 0);
+  --primary-mid: #0891B2;
+  --primary-light: #CFF0F4;
+  --primary-pale: #F0FAFB;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-item: rgba(45,212,191,.12);
+  --sidebar-active: rgba(56,189,201,.20);
   --sidebar-text: rgba(255,255,255,.55);
-  --sidebar-active-text: #C4B5FD;
-  --gold: #F59E0B;
-  --gold-bg: #FFFBEB;
-  --gold-text: #92400E;
+  --sidebar-active-text: #7DD3DC;
+  --gold: #E8A838;
+  --gold-bg: #FEF6E7;
+  --gold-text: #8A5A12;
   --coral: #F97316;
   --coral-bg: #FFF7ED;
   --green: #10B981;
   --green-bg: #ECFDF5;
   --green-text: #065F46;
-  --red: #EF4444;
+  --red: #E5484D;
   --red-bg: #FEF2F2;
-  --bg: #F4F3FA;
-  --card: #FFFFFF;
-  --text: #1E1B4B;
-  --muted: #64748B;
-  --border: #E2E8F0;
-  --border-strong: #CBD5E1;
-  --locked: #94A3B8;
-  --locked-bg: #F1F5F9;
-  --radius: 12px;
-  --shadow: 0 1px 4px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.04);
+  --bg: #EEF4F5;
+  --card: oklch(1 0 0);
+  --text: #0F2830;
+  --muted: oklch(0.97 0 0);
+  --border: oklch(0.922 0 0);
+  --border-strong: #C2D2D5;
+  --locked: #94A8AC;
+  --locked-bg: #EDF2F3;
+  --radius: 0.625rem;
+  --shadow: 0 1px 3px rgba(15,40,48,.05), 0 6px 20px rgba(15,40,48,.05);
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
 }
 
 html, body { height: 100%; overflow: hidden; }
@@ -45,6 +89,9 @@ body {
 
 #root { display: flex; width: 100%; height: 100vh; overflow: hidden; }
 
+/* Centered, width-capped content column shared by all pages */
+.du-content { max-width: 1280px; margin-inline: auto; }
+
 /* ── Scrollbars ── */
 .du-scroll::-webkit-scrollbar { width: 4px; }
 .du-scroll::-webkit-scrollbar-track { background: transparent; }
@@ -54,17 +101,228 @@ body {
 .pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; white-space: nowrap; }
 .pill-green { background: var(--green-bg); color: var(--green-text); }
 .pill-gold  { background: var(--gold-bg);  color: var(--gold-text);  }
-.pill-primary { background: var(--primary-light); color: var(--primary); }
+.pill-primary { background: var(--primary-light); color: var(--du-primary); }
 .pill-coral { background: var(--coral-bg); color: var(--coral); }
 .pill-muted { background: var(--locked-bg); color: var(--locked); }
 .pill-red   { background: var(--red-bg);   color: var(--red);   }
 
+/* ── Accessibility ── */
+:focus-visible { outline: 2px solid var(--primary-mid); outline-offset: 2px; border-radius: 4px; }
+
+/* ── Skeleton loading ── */
+@keyframes sk-shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+.sk {
+  background: linear-gradient(90deg, var(--locked-bg) 25%, #E2ECEE 37%, var(--locked-bg) 63%);
+  background-size: 200% 100%;
+  animation: sk-shimmer 1.4s ease-in-out infinite;
+  border-radius: 8px;
+}
+@media (prefers-reduced-motion: reduce) { .sk { animation: none; } }
+
+/* ── Hero (dashboard) ── */
+.du-hero { display: flex; align-items: center; justify-content: space-between; gap: 28px; flex-wrap: wrap; }
+.du-hero-stats { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+@media (max-width: 860px) {
+  .du-hero { flex-direction: column; align-items: stretch; }
+  .du-hero-stats { width: 100%; justify-content: space-between; }
+}
+
+/* ── Responsive grids ── */
+.du-grid-2 { display: grid; grid-template-columns: 1fr 1fr; }
+.du-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); }
+.du-grid-stats { display: grid; grid-template-columns: repeat(5, 1fr); }
+.du-table-wrap { overflow-x: auto; }
+
+@media (max-width: 1100px) {
+  .du-grid-stats { grid-template-columns: repeat(2, 1fr) !important; }
+  .du-grid-4 { grid-template-columns: 1fr 1fr !important; }
+}
+@media (max-width: 900px) {
+  .du-grid-2 { grid-template-columns: 1fr !important; }
+}
+@media (max-width: 640px) {
+  .du-grid-4 { grid-template-columns: 1fr !important; }
+  .du-grid-stats { grid-template-columns: 1fr 1fr !important; }
+}
+
+/* 3-panel week layout stacks on narrow screens */
+@media (max-width: 1000px) {
+  .du-3panel {
+    grid-template-columns: 1fr !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  .du-3panel > div { width: 100% !important; min-width: 0 !important; border-left: none !important; border-right: none !important; }
+}
+
+/* Sidebar becomes a horizontal top bar on phones */
+@media (max-width: 768px) {
+  /* Phones: let the page scroll naturally and stack the app shell vertically.
+     The layout shells use an inline display:flex (row) that must become a column,
+     otherwise the sidebar stretches full-height and hides the main content. */
+  html, body { height: auto !important; overflow: auto !important; }
+  body, #root { flex-direction: column !important; }
+  #root { height: auto !important; overflow: visible !important; }
+  .du-shell { flex-direction: column !important; height: auto !important; overflow: visible !important; }
+  .du-sidebar {
+    width: 100% !important; min-width: 0 !important; height: auto !important;
+    flex-direction: row !important; align-items: center; overflow-x: auto !important;
+    padding: 4px 8px;
+  }
+  .du-sidebar nav { flex-direction: row !important; padding: 0 4px !important; flex-shrink: 0; }
+  .du-sidebar nav button { white-space: nowrap; }
+  .du-sidebar hr,
+  .du-sidebar .du-section-label,
+  .du-sidebar .du-user-footer { display: none !important; }
+  main { height: auto !important; overflow-x: hidden; }
+  /* Guard: content should never push the page wider than the viewport */
+  #root { max-width: 100vw; overflow-x: hidden !important; }
+}
+
+/* Tighten page gutters on small screens (beats inline padding) */
+@media (max-width: 560px) {
+  .du-pad { padding-left: 16px !important; padding-right: 16px !important; }
+  .du-hero { margin-left: 16px !important; margin-right: 16px !important; padding: 22px 20px !important; }
+}
+
 /* ── Buttons ── */
 .du-btn { display: inline-flex; align-items: center; gap: 7px; padding: 10px 18px; border-radius: 10px; font-weight: 600; font-size: 13px; font-family: 'Inter', sans-serif; cursor: pointer; border: none; transition: all .15s; }
 .du-btn-sm { padding: 7px 14px; font-size: 12px; border-radius: 8px; }
-.du-btn-primary { background: var(--primary); color: #fff; }
+.du-btn-primary { background: var(--du-primary); color: #fff; }
 .du-btn-primary:hover { background: var(--primary-mid); }
-.du-btn-secondary { background: var(--primary-light); color: var(--primary); }
-.du-btn-secondary:hover { background: #DDD6FE; }
-.du-btn-outline { background: none; color: var(--text); border: 1.5px solid var(--border); }
-.du-btn-outline:hover { border-color: var(--primary-light); color: var(--primary); }
+.du-btn-secondary { background: var(--primary-light); color: var(--du-primary); }
+.du-btn-secondary:hover { background: #B6E6EC; }
+.du-btn-outline { background: none; color: var(--text); border: 1.5px solid var(--du-border); }
+.du-btn-outline:hover { border-color: var(--primary-light); color: var(--du-primary); }
+
+@theme inline { --font-heading: var(--font-sans); --font-sans: 'Geist Variable', sans-serif; --color-sidebar-ring: var(--sidebar-ring); --color-sidebar-border: var(--sidebar-border); --color-sidebar-accent-foreground: var(--sidebar-accent-foreground); --color-sidebar-accent: var(--sidebar-accent); --color-sidebar-primary-foreground: var(--sidebar-primary-foreground); --color-sidebar-primary: var(--sidebar-primary); --color-sidebar-foreground: var(--sidebar-foreground); --color-sidebar: var(--sidebar); --color-chart-5: var(--chart-5); --color-chart-4: var(--chart-4); --color-chart-3: var(--chart-3); --color-chart-2: var(--chart-2); --color-chart-1: var(--chart-1); --color-ring: var(--ring); --color-input: var(--input); --color-border: var(--border); --color-destructive: var(--destructive); --color-accent-foreground: var(--accent-foreground); --color-accent: var(--accent); --color-muted-foreground: var(--muted-foreground); --color-muted: var(--muted); --color-secondary-foreground: var(--secondary-foreground); --color-secondary: var(--secondary); --color-primary-foreground: var(--primary-foreground); --color-primary: var(--primary); --color-popover-foreground: var(--popover-foreground); --color-popover: var(--popover); --color-card-foreground: var(--card-foreground); --color-card: var(--card); --color-foreground: var(--foreground); --color-background: var(--background); --radius-sm: calc(var(--radius) * 0.6); --radius-md: calc(var(--radius) * 0.8); --radius-lg: var(--radius); --radius-xl: calc(var(--radius) * 1.4); --radius-2xl: calc(var(--radius) * 1.8); --radius-3xl: calc(var(--radius) * 2.2); --radius-4xl: calc(var(--radius) * 2.6); }
+
+.dark { --background: oklch(0.145 0 0); --foreground: oklch(0.985 0 0); --card: oklch(0.205 0 0); --card-foreground: oklch(0.985 0 0); --popover: oklch(0.205 0 0); --popover-foreground: oklch(0.985 0 0); --primary: oklch(0.922 0 0); --primary-foreground: oklch(0.205 0 0); --secondary: oklch(0.269 0 0); --secondary-foreground: oklch(0.985 0 0); --muted: oklch(0.269 0 0); --muted-foreground: oklch(0.708 0 0); --accent: oklch(0.269 0 0); --accent-foreground: oklch(0.985 0 0); --destructive: oklch(0.704 0.191 22.216); --border: oklch(1 0 0 / 10%); --input: oklch(1 0 0 / 15%); --ring: oklch(0.556 0 0); --chart-1: oklch(0.87 0 0); --chart-2: oklch(0.556 0 0); --chart-3: oklch(0.439 0 0); --chart-4: oklch(0.371 0 0); --chart-5: oklch(0.269 0 0); --sidebar: oklch(0.205 0 0); --sidebar-foreground: oklch(0.985 0 0); --sidebar-primary: oklch(0.488 0.243 264.376); --sidebar-primary-foreground: oklch(0.985 0 0); --sidebar-accent: oklch(0.269 0 0); --sidebar-accent-foreground: oklch(0.985 0 0); --sidebar-border: oklch(1 0 0 / 10%); --sidebar-ring: oklch(0.556 0 0); }
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50; }
+  body {
+    @apply bg-background text-foreground; }
+  html {
+    @apply font-sans; } }
+
+/* ═══════════════════════════════ THEMES ═══════════════════════════════
+   Classic is the default (:root). The two glass themes override surface
+   colors and turn on backdrop blur. Applied via [data-theme] on <html>. */
+
+:root {
+  --glass-blur: 0px;
+  /* Opaque bar surface for fixed/sticky chrome (must hide scrolling content) */
+  --surface-bar: #FFFFFF;
+  /* Semantic accent surfaces used on student/mentor cards */
+  --surface-done-bg: linear-gradient(135deg, #ECFDF5, #D1FAE5);
+  --surface-done-border: #A7F3D0;
+  --surface-current-bg: linear-gradient(135deg, var(--primary-pale), var(--primary-light));
+  --surface-current-border: var(--primary-mid);
+  --surface-gold-bg: linear-gradient(135deg, var(--gold-bg), #FEF3C7);
+  --surface-gold-border: #FCD34D;
+  --panel-frost: rgba(255, 255, 255, 0.5);
+  --bubble-empty: rgba(255, 255, 255, 0.6);
+  --track: rgba(0, 0, 0, 0.08);
+}
+
+/* Reusable frosted panel — falls back to a solid card in the classic theme. */
+.glass-panel {
+  background: var(--glass-bg, #fff);
+  border: 1px solid var(--glass-border, var(--du-border));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+}
+
+/* ── Light glass ── */
+[data-theme="light-glass"] {
+  --glass-blur: 18px;
+  --glass-bg: rgba(255, 255, 255, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.65);
+  --bg: #E5F0F3;
+  --du-card: rgba(255, 255, 255, 0.55);
+  --du-border: rgba(255, 255, 255, 0.6);
+  --border-strong: rgba(15, 40, 48, 0.18);
+  --du-sidebar: rgba(12, 36, 48, 0.72);
+  --locked-bg: rgba(255, 255, 255, 0.4);
+  --shadow: 0 8px 32px rgba(15, 40, 48, 0.12);
+  --card: rgba(255, 255, 255, 0.55);
+  --popover: rgba(255, 255, 255, 0.82);
+  --surface-bar: rgba(255, 255, 255, 0.85);
+  --panel-frost: rgba(255, 255, 255, 0.45);
+}
+[data-theme="light-glass"] body {
+  background:
+    radial-gradient(1200px 620px at 8% -5%, rgba(56, 189, 201, 0.30), transparent 60%),
+    radial-gradient(1000px 700px at 105% 15%, rgba(232, 168, 56, 0.22), transparent 55%),
+    radial-gradient(900px 900px at 50% 115%, rgba(8, 145, 178, 0.22), transparent 60%),
+    #E8F1F4;
+  background-attachment: fixed;
+}
+
+/* ── Dark glass ── (pairs with the .dark class for shadcn's dark tokens) ── */
+[data-theme="dark-glass"] {
+  --glass-blur: 20px;
+  --glass-bg: rgba(255, 255, 255, 0.06);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --bg: #0A1520;
+  --text: #E8F0F2;
+  --du-muted: #8FA9B3;
+  --du-card: rgba(255, 255, 255, 0.06);
+  --du-border: rgba(255, 255, 255, 0.12);
+  --border-strong: rgba(255, 255, 255, 0.2);
+  --du-sidebar: rgba(9, 19, 29, 0.66);
+  --locked: #5E7480;
+  --locked-bg: rgba(255, 255, 255, 0.05);
+  --shadow: 0 10px 34px rgba(0, 0, 0, 0.45);
+  --card: rgba(255, 255, 255, 0.06);
+  --popover: rgba(19, 31, 41, 0.9);
+  --primary-light: rgba(56, 189, 201, 0.2);
+  --primary-pale: rgba(56, 189, 201, 0.1);
+  --gold-bg: rgba(232, 168, 56, 0.16);
+  --green-bg: rgba(16, 185, 129, 0.16);
+  --coral-bg: rgba(249, 115, 22, 0.16);
+  --red-bg: rgba(229, 72, 77, 0.16);
+  /* Lighten accent text so it stays legible on dark tinted surfaces */
+  --gold-text: #EAC078;
+  --green-text: #6EE7B7;
+  /* Opaque-ish bar + adaptive accent surfaces */
+  --surface-bar: rgba(11, 21, 32, 0.92);
+  --surface-done-bg: linear-gradient(135deg, rgba(16, 185, 129, 0.18), rgba(16, 185, 129, 0.05));
+  --surface-done-border: rgba(16, 185, 129, 0.38);
+  --surface-current-bg: linear-gradient(135deg, rgba(14, 116, 144, 0.30), rgba(56, 189, 201, 0.12));
+  --surface-current-border: rgba(56, 189, 201, 0.55);
+  --surface-gold-bg: linear-gradient(135deg, rgba(232, 168, 56, 0.20), rgba(232, 168, 56, 0.06));
+  --surface-gold-border: rgba(232, 168, 56, 0.42);
+  --panel-frost: rgba(255, 255, 255, 0.06);
+  --bubble-empty: rgba(255, 255, 255, 0.06);
+  --track: rgba(255, 255, 255, 0.1);
+}
+[data-theme="dark-glass"] body {
+  background:
+    radial-gradient(1200px 640px at 0% -5%, rgba(14, 116, 144, 0.38), transparent 55%),
+    radial-gradient(1000px 720px at 105% 8%, rgba(56, 189, 201, 0.20), transparent 50%),
+    radial-gradient(900px 820px at 60% 118%, rgba(232, 168, 56, 0.14), transparent 55%),
+    #08131D;
+  background-attachment: fixed;
+}
+
+/* Frost the key surfaces when a glass theme is active */
+[data-theme="light-glass"] [data-slot="card"],
+[data-theme="light-glass"] [data-slot="dialog-content"],
+[data-theme="light-glass"] [data-slot="popover"],
+[data-theme="light-glass"] [data-slot="select-content"],
+[data-theme="light-glass"] [data-slot="dropdown-menu-content"],
+[data-theme="light-glass"] [data-slot="combobox-content"],
+[data-theme="light-glass"] .du-sidebar,
+[data-theme="dark-glass"] [data-slot="card"],
+[data-theme="dark-glass"] [data-slot="dialog-content"],
+[data-theme="dark-glass"] [data-slot="popover"],
+[data-theme="dark-glass"] [data-slot="select-content"],
+[data-theme="dark-glass"] [data-slot="dropdown-menu-content"],
+[data-theme="dark-glass"] [data-slot="combobox-content"],
+[data-theme="dark-glass"] .du-sidebar {
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+  backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+}

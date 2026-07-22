@@ -1,9 +1,13 @@
 import { Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
+import { LayoutDashboard, ClipboardList, HeartHandshake, Megaphone, Users } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { mentorsApi } from '@/api/mentors'
 import { authApi } from '@/api/auth'
 import { useMentorHub } from '@/hooks/useMentorHub'
+import { useIsMobile } from '@/hooks/useIsMobile'
+import { MobileHeader, type HeaderMenuItem } from '@/components/MobileHeader'
+import { MobileTabBar, type MobileTab } from '@/components/MobileTabBar'
 
 interface NavItem {
   id: string
@@ -13,9 +17,18 @@ interface NavItem {
   badgeKey?: 'pendingSubmissions' | 'pendingPrayerRequests'
 }
 
+const TAB_META: Record<string, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
+  dashboard:     { label: 'Home',   icon: LayoutDashboard },
+  review:        { label: 'Review', icon: ClipboardList },
+  roster:        { label: 'People', icon: Users },
+  prayer:        { label: 'Prayer', icon: HeartHandshake },
+  announcements: { label: 'News',   icon: Megaphone },
+}
+
 const MENTOR_NAV: NavItem[] = [
   { id: 'dashboard',     label: 'Dashboard',     icon: 'ti-layout-dashboard', path: '/mentor' },
   { id: 'review',        label: 'Review Queue',  icon: 'ti-clipboard-check',  path: '/mentor/review',        badgeKey: 'pendingSubmissions' },
+  { id: 'roster',        label: 'Students',      icon: 'ti-users',            path: '/mentor/roster' },
   { id: 'prayer',        label: 'Prayer Wall',   icon: 'ti-heart-handshake',  path: '/mentor/prayer',        badgeKey: 'pendingPrayerRequests' },
   { id: 'announcements', label: 'Announcements', icon: 'ti-speakerphone',     path: '/mentor/announcements' },
 ]
@@ -23,6 +36,7 @@ const MENTOR_NAV: NavItem[] = [
 export default function MentorLayout() {
   const location = useLocation()
   const navigate = useNavigate()
+  const isMobile = useIsMobile()
   const [searchParams] = useSearchParams()
   const { user, clearAuth } = useAuthStore()
 
@@ -38,7 +52,7 @@ export default function MentorLayout() {
   useMentorHub(cohort?.id)
 
   const logout = useMutation({
-    mutationFn: () => authApi.logout(),
+    mutationFn: () => authApi.logout(localStorage.getItem('refreshToken') ?? ''),
     onSettled: () => { clearAuth(); navigate('/login') },
   })
 
@@ -61,17 +75,42 @@ export default function MentorLayout() {
     color: active ? 'var(--sidebar-active-text)' : 'var(--sidebar-text)',
   })
 
+  if (isMobile) {
+    const tabs: MobileTab[] = MENTOR_NAV.map((item) => ({
+      label: TAB_META[item.id].label,
+      icon: TAB_META[item.id].icon,
+      active: isActive(item),
+      onClick: () => navigate(withCohort(item.path)),
+      badge: item.badgeKey && cohort ? cohort[item.badgeKey] : undefined,
+    }))
+    const menu: HeaderMenuItem[] = user?.role === 'Admin'
+      ? [{ label: 'Admin panel', icon: LayoutDashboard, onClick: () => navigate('/admin/cohorts') }]
+      : []
+    return (
+      <div className="flex min-h-screen flex-col bg-[var(--bg)]">
+        <MobileHeader
+          name={`${user?.firstName ?? ''} ${user?.lastName ?? ''}`.trim()}
+          initials={initials}
+          items={menu}
+          onSignOut={() => logout.mutate()}
+        />
+        <main className="flex-1 pb-[76px]"><Outlet /></main>
+        <MobileTabBar tabs={tabs} />
+      </div>
+    )
+  }
+
   return (
-    <div style={{ display: 'flex', width: '100%', height: '100vh', overflow: 'hidden' }}>
-      <aside style={{
-        width: 240, minWidth: 240, background: 'var(--sidebar)',
+    <div className="du-shell" style={{ display: 'flex', width: '100%', height: '100vh', overflow: 'hidden' }}>
+      <aside className="du-sidebar" style={{
+        width: 240, minWidth: 240, background: 'var(--du-sidebar)',
         display: 'flex', flexDirection: 'column', height: '100vh', overflowY: 'auto',
       }}>
         <div style={{ padding: '24px 20px 20px', fontFamily: 'Sora, sans-serif', fontWeight: 800, fontSize: 22, color: '#fff', letterSpacing: '-.3px' }}>
           Disciple<span style={{ color: 'var(--gold)' }}>Up</span>
         </div>
 
-        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--sidebar-text)', letterSpacing: '.1em', textTransform: 'uppercase', padding: '12px 20px 6px' }}>
+        <div className="du-section-label" style={{ fontSize: 10, fontWeight: 700, color: 'var(--sidebar-text)', letterSpacing: '.1em', textTransform: 'uppercase', padding: '12px 20px 6px' }}>
           Mentor
         </div>
         <nav style={{ padding: '0 10px', display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -93,7 +132,7 @@ export default function MentorLayout() {
 
         <hr style={{ margin: '10px 20px', border: 'none', borderTop: '1px solid rgba(255,255,255,.08)' }} />
 
-        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--sidebar-text)', letterSpacing: '.1em', textTransform: 'uppercase', padding: '12px 20px 6px' }}>
+        <div className="du-section-label" style={{ fontSize: 10, fontWeight: 700, color: 'var(--sidebar-text)', letterSpacing: '.1em', textTransform: 'uppercase', padding: '12px 20px 6px' }}>
           Other
         </div>
         <nav style={{ padding: '0 10px', display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -113,7 +152,7 @@ export default function MentorLayout() {
           </button>
         </nav>
 
-        <div style={{ marginTop: 'auto', padding: 16, borderTop: '1px solid rgba(255,255,255,.08)', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div className="du-user-footer" style={{ marginTop: 'auto', padding: 16, borderTop: '1px solid rgba(255,255,255,.08)', display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{
             width: 36, height: 36, borderRadius: 10, flexShrink: 0,
             background: 'linear-gradient(135deg, var(--gold), var(--coral))',
@@ -134,7 +173,7 @@ export default function MentorLayout() {
       </aside>
 
       <main className="du-scroll" style={{ flex: 1, height: '100vh', overflowY: 'auto', overflowX: 'hidden', background: 'var(--bg)' }}>
-        <Outlet />
+        <div className="du-content"><Outlet /></div>
       </main>
     </div>
   )

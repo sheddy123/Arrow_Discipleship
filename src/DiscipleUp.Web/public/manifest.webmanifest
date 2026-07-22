@@ -1,0 +1,24 @@
+{
+  "name": "DiscipleUp — 28-Day Discipleship Training",
+  "short_name": "DiscipleUp",
+  "description": "Daily devotions, tasks, and weekly assignments for your 28-day discipleship journey.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F4F3FA",
+  "theme_color": "#160F2E",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-512.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
